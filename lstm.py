@@ -12,10 +12,10 @@ from resilient_nlp.embedders import BertEmbedder
 
 # TODO: These shouldn't be consumed directly by LSTMModel
 NUM_TOKENS = 1000
-NUM_SENTENCES = 2000
+NUM_SENTENCES = 64000
 CHAR_EMB_SIZE = 768
 HIDDEN_SIZE = 768
-NUM_LSTM_LAYERS = 2
+NUM_LSTM_LAYERS = 3
 
 class LSTMModel(nn.Module):
     def __init__(self, word_emb_size):
@@ -36,11 +36,30 @@ class LSTMModel(nn.Module):
         lstm_hidden_packed, lstm_cell_packed = self.lstm(packed)
         lstm_hidden, _ = nn.utils.rnn.pad_packed_sequence(lstm_hidden_packed,
             batch_first=True, total_length=max_length)
-        dense_result = self.dense(lstm_hidden)
+        dense_result = nn.Tanh()(self.dense(lstm_hidden))
         gate_result = self.gate_activation(self.gate(lstm_hidden))
 
         return dense_result, gate_result.squeeze(2)
 
+    def predict_embeddings(self, X, lengths):
+        dense_result, gate_result = self.forward(X, lengths)
+
+        gate_result = torch.round(gate_result).unsqueeze(2)
+
+        token_nums = torch.sum(gate_result, dim=(1, 2))
+        max_tokens = int(torch.max(token_nums))
+
+        result = torch.zeros((dense_result.shape[0], max_tokens, dense_result.shape[2]),
+            dtype=torch.float)
+
+        for i in range(dense_result.shape[0]):
+            token_idx = 0
+            for j in range(dense_result.shape[1]):
+                if gate_result[i][j][0] == 1.0:
+                    result[i][token_idx] = dense_result[i][j]
+                    token_idx += 1
+
+        return result.detach(), token_nums.detach()
 
 if __name__ == '__main__':
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
@@ -62,7 +81,7 @@ if __name__ == '__main__':
 
     batch_size = 64
     num_batches = math.ceil(len(sentences) / batch_size)
-    num_epochs = 500
+    num_epochs = 2
 
     for epoch in range(num_epochs):
         for i in range(num_batches):
@@ -116,3 +135,31 @@ if __name__ == '__main__':
 
             print("%04d-%04d: embedding loss: %f, mask loss: %f, mask accuracy: %f (%f positive examples in batch)" %
                 (epoch, i, batch_emb_loss / batch_emb_variance, batch_mask_loss / batch_mask_variance, mask_accuracy, batch_positive / batch_total))
+
+    model.eval()
+    char_tokenizer.extend_vocab = False
+    test_sentences = [
+      "my hovercraft is full of eels!",
+      "common sense is the least common of all the senses",
+    ]
+
+    test_sentence_tokens = char_tokenizer.tokenize(test_sentences)
+    test_lengths = [ len(sentence) for sentence in test_sentence_tokens ]
+    test_max_length = max(test_lengths)
+
+    X = torch.zeros((len(test_sentences), test_max_length), dtype=torch.int)
+    for j, tokens in enumerate(test_sentence_tokens):
+        X[j,:len(tokens)] = torch.IntTensor(tokens)
+    X = X.to(device)
+
+    test_embedded = model.predict_embeddings(X, test_lengths)
+
+    bert_embedding = embedder.model.embeddings.word_embeddings
+
+    res = torch.matmul(test_embedded[0], bert_embedding.weight.data.T)
+
+    res_list = torch.argmax(res, dim=2).cpu().tolist()
+    print(res_list)
+
+    for item in res_list:
+        print(embedder.tokenizer.convert_ids_to_tokens(item))
