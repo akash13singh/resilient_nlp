@@ -78,9 +78,11 @@ if __name__ == '__main__':
                 # There HAS to be a nicer way to do this... :(
                 batch_X[j,:len(tokens)] = torch.IntTensor(tokens)
 
+            batch_X = batch_X.to(device)
+
             bert_embeddings = embedder.embed(sentences[bs:be])
-            batch_Y = bert_embeddings['embeddings']
-            batch_Y_masks = bert_embeddings['masks']
+            batch_Y = bert_embeddings['embeddings'].to(device)
+            batch_Y_masks = bert_embeddings['masks'].to(device)
 
             batch_lengths = bert_embeddings['num_chars']
             model.zero_grad()
