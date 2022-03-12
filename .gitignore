@@ -14,5 +14,5 @@ venv/
 ENV/
 env.bak/
 
-#
 .DS_Store
+__pycache__
