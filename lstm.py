@@ -9,6 +9,7 @@ import sys
 from resilient_nlp.char_tokenizer import CharTokenizer
 from resilient_nlp.corpora import BookCorpus
 from resilient_nlp.embedders import BertEmbedder
+from resilient_nlp.perturbers import NullPerturber, ToyPerturber
 
 # TODO: These shouldn't be consumed directly by LSTMModel
 NUM_TOKENS = 1000
@@ -67,11 +68,12 @@ if __name__ == '__main__':
     corpus = BookCorpus()
     embedder = BertEmbedder(per_character_embedding=True)
     char_tokenizer = CharTokenizer(max_vocab=NUM_TOKENS)
+    # perturber = NullPerturber()
+    perturber = ToyPerturber()
 
     # Ensure consistent sample
     random.seed(11)
     sentences = corpus.sample_items(NUM_SENTENCES)
-    sentence_tokens = char_tokenizer.tokenize(sentences)
 
     num_samples = len(sentences)
 
@@ -89,21 +91,32 @@ if __name__ == '__main__':
             be = bs + batch_size
             num_examples_in_batch = min(batch_size, num_samples - bs)
 
-            max_length = max([len(tokens) for tokens in sentence_tokens[bs:be]])
+            bert_embeddings = embedder.embed(sentences[bs:be])
+
+            batch_Y = bert_embeddings['embeddings']
+            batch_Y_masks = bert_embeddings['masks']
+
+            perturbed_sentences, batch_Y_masks, batch_Y = perturber.perturb(
+                sentences[bs:be],
+                batch_Y_masks,
+                batch_Y)
+
+            sentence_tokens = char_tokenizer.tokenize(perturbed_sentences)
+
+            batch_lengths = [ len(tokens) for tokens in sentence_tokens ]
+            max_length = max(batch_lengths)
             batch_X = torch.zeros((num_examples_in_batch, max_length),
                 dtype=torch.int)
 
-            for j, tokens in enumerate(sentence_tokens[bs:be]):
+            for j, tokens in enumerate(sentence_tokens):
                 # There HAS to be a nicer way to do this... :(
                 batch_X[j,:len(tokens)] = torch.IntTensor(tokens)
 
             batch_X = batch_X.to(device)
 
-            bert_embeddings = embedder.embed(sentences[bs:be])
-            batch_Y = bert_embeddings['embeddings'].to(device)
-            batch_Y_masks = bert_embeddings['masks'].to(device)
+            batch_Y = batch_Y.to(device)
+            batch_Y_masks = batch_Y_masks.to(device)
 
-            batch_lengths = bert_embeddings['num_chars']
             model.zero_grad()
             model.train()
 
@@ -141,6 +154,10 @@ if __name__ == '__main__':
     test_sentences = [
       "my hovercraft is full of eels!",
       "common sense is the least common of all the senses",
+      "common sense is the least common of all the senses ",
+      " c0mmon s3nse 1s the l3@st comm0n of a|| th3 sens3s ",
+      "common sense is the least com mon of all the senses ",
+      "my hovercra ft is full of eels! ",
     ]
 
     test_sentence_tokens = char_tokenizer.tokenize(test_sentences)
@@ -161,5 +178,6 @@ if __name__ == '__main__':
     res_list = torch.argmax(res, dim=2).cpu().tolist()
     print(res_list)
 
-    for item in res_list:
-        print(embedder.tokenizer.convert_ids_to_tokens(item))
+    for i, item in enumerate(res_list):
+        print("Original sentence: {}".format(test_sentences[i]))
+        print("Reconstructed    : {}".format(" ".join(embedder.tokenizer.convert_ids_to_tokens(item))))
