@@ -13,14 +13,16 @@ class CharTokenizer:
         self.unk_index = unk_index
         self.vocab_map = { c: index for index, c in enumerate(self.vocab) }
 
-    def tokenize(self, inputs):
+    def tokenize(self, inputs, extend_vocab=None):
         result = []
+        if extend_vocab is None:
+            extend_vocab = self.extend_vocab
         for input in inputs:
             tokens = []
             for c in input:
                 if c in self.vocab_map:
                     tokens.append(self.vocab_map[c])
-                elif self.extend_vocab and \
+                elif extend_vocab and \
                         (self.max_vocab is None or
                         len(self.vocab) < self.max_vocab):
                     # extend vocabulary
@@ -35,9 +37,9 @@ class CharTokenizer:
 
     def save_vocab(self, path):
         with open(path, 'w') as f:
-            json.dump(self.vocab, file=f)
+            json.dump(self.vocab, fp=f)
 
     def load_vocab(self, path):
         with open(path) as f:
-            self.vocab = json.load(file=f)
+            self.vocab = json.load(fp=f)
             self.vocab_map = { c: index for index, c in enumerate(self.vocab) }

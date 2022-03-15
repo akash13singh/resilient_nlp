@@ -2,6 +2,7 @@ import json
 import math
 import os
 import random
+import re
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -25,96 +26,135 @@ NUM_LSTM_LAYERS = 3
 # FIXME - this is hardcoded for bert-base
 WORD_EMB_SIZE = 768
 
+
+class ExperimentRunner:
+    def __init__(self, device):
+        self.device = device
+        self.model = LSTMModel(word_emb_size=WORD_EMB_SIZE,
+            char_emb_size=CHAR_EMB_SIZE, num_tokens=NUM_TOKENS,
+            hidden_size=HIDDEN_SIZE, num_layers=NUM_LSTM_LAYERS).to(device)
+        self.char_tokenizer = CharTokenizer(max_vocab=NUM_TOKENS)
+        self.embedder = BertEmbedder(per_character_embedding=True)
+
+    def train(self, num_sentences):
+        corpus = BookCorpus()
+        # perturber = NullPerturber()
+        perturber = ToyPerturber()
+
+        # Ensure consistent sample
+        random.seed(11)
+        sentences = corpus.sample_items(num_sentences)
+
+        num_samples = len(sentences)
+
+        loss = nn.MSELoss()
+        optimizer = optim.Adam(self.model.parameters(), lr=0.001)
+
+        num_batches = math.ceil(len(sentences) / BATCH_SIZE)
+
+        for epoch in range(NUM_EPOCHS):
+            for i in range(num_batches):
+                bs = i * BATCH_SIZE
+                be = bs + BATCH_SIZE
+                num_examples_in_batch = min(BATCH_SIZE, num_samples - bs)
+
+                bert_embeddings = self.embedder.embed(sentences[bs:be])
+
+                batch_Y = bert_embeddings['embeddings']
+                batch_Y_masks = bert_embeddings['masks']
+
+                perturbed_sentences, batch_Y_masks, batch_Y = perturber.perturb(
+                    sentences[bs:be],
+                    batch_Y_masks,
+                    batch_Y)
+
+                sentence_tokens = self.char_tokenizer.tokenize(perturbed_sentences)
+
+                batch_lengths = [ len(tokens) for tokens in sentence_tokens ]
+                max_length = max(batch_lengths)
+                batch_X = torch.zeros((num_examples_in_batch, max_length),
+                    dtype=torch.int)
+
+                for j, tokens in enumerate(sentence_tokens):
+                    # There HAS to be a nicer way to do this... :(
+                    batch_X[j,:len(tokens)] = torch.IntTensor(tokens)
+
+                batch_X = batch_X.to(self.device)
+
+                batch_Y = batch_Y.to(device)
+                batch_Y_masks = batch_Y_masks.to(self.device)
+
+                self.model.zero_grad()
+                self.model.train()
+
+                batch_preds, batch_pred_masks = self.model(batch_X, batch_lengths)
+                batch_emb_loss = \
+                    loss(batch_preds * batch_Y_masks.unsqueeze(2), batch_Y)
+                batch_emb_variance = \
+                    float(torch.mean(torch.std(batch_Y, (0, 1), unbiased=False) ** 2))
+                batch_mask_loss = loss(batch_pred_masks,  batch_Y_masks)
+                batch_mask_variance = \
+                    float(torch.std(batch_Y_masks, unbiased=False) ** 2)
+
+                loss_multiplier = float(batch_mask_loss) / float(batch_emb_loss)
+                batch_combined_loss = batch_emb_loss * loss_multiplier + batch_mask_loss
+
+                batch_correct = 0
+                batch_total = 0
+                batch_positive = 0
+
+                for idx, length in enumerate(batch_lengths):
+                    batch_total += length
+                    batch_correct += int(sum(torch.isclose(torch.round(batch_pred_masks[idx][:length]), batch_Y_masks[idx][:length])))
+                    batch_positive += int(sum(batch_Y_masks[idx][:length]))
+
+                mask_accuracy = batch_correct / batch_total
+
+                batch_combined_loss.backward()
+                optimizer.step()
+
+                print("%04d-%04d: embedding loss: %f, mask loss: %f, mask accuracy: %f (%f positive examples in batch)" %
+                    (epoch, i, batch_emb_loss / batch_emb_variance, batch_mask_loss / batch_mask_variance, mask_accuracy, batch_positive / batch_total))
+
+    def embed(self, sentences):
+        self.model.eval()
+        sentence_tokens = self.char_tokenizer.tokenize(sentences, extend_vocab=False)
+        lengths = [ len(sentence) for sentence in sentence_tokens ]
+        max_length = max(lengths)
+
+        X = torch.zeros((len(sentences), max_length), dtype=torch.int)
+        for j, tokens in enumerate(sentence_tokens):
+            X[j,:len(tokens)] = torch.IntTensor(tokens)
+        X = X.to(self.device)
+
+        embedded = self.model.predict_embeddings(X, lengths)
+
+        return embedded
+
+    def inverse_embed(self, embedded):
+        bert_embedding = self.embedder.model.embeddings.word_embeddings
+
+        res = torch.matmul(embedded[0], bert_embedding.weight.data.T)
+
+        res_token_list = torch.argmax(res, dim=2).cpu().tolist()
+
+        res_sentences = []
+
+        for i, item in enumerate(res_token_list):
+            res_sentences.append(
+                re.sub(" ##", "", " ".join(self.embedder.tokenizer.convert_ids_to_tokens(item))))
+
+        return res_sentences, res_token_list
+
+    def sanitize(self, sentences):
+        return self.inverse_embed(self.embed(sentences))[0]
+
 if __name__ == '__main__':
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
-    corpus = BookCorpus()
-    embedder = BertEmbedder(per_character_embedding=True)
-    char_tokenizer = CharTokenizer(max_vocab=NUM_TOKENS)
-    # perturber = NullPerturber()
-    perturber = ToyPerturber()
+    runner = ExperimentRunner(device)
+    runner.train(NUM_SENTENCES)
 
-    # Ensure consistent sample
-    random.seed(11)
-    sentences = corpus.sample_items(NUM_SENTENCES)
-
-    num_samples = len(sentences)
-
-    model = LSTMModel(word_emb_size=WORD_EMB_SIZE, char_emb_size=CHAR_EMB_SIZE,
-        num_tokens=NUM_TOKENS, hidden_size=HIDDEN_SIZE,
-        num_layers=NUM_LSTM_LAYERS).to(device)
-
-    loss = nn.MSELoss()
-    optimizer = optim.Adam(model.parameters(), lr=0.001)
-
-    num_batches = math.ceil(len(sentences) / BATCH_SIZE)
-
-    for epoch in range(NUM_EPOCHS):
-        for i in range(num_batches):
-            bs = i * BATCH_SIZE
-            be = bs + BATCH_SIZE
-            num_examples_in_batch = min(BATCH_SIZE, num_samples - bs)
-
-            bert_embeddings = embedder.embed(sentences[bs:be])
-
-            batch_Y = bert_embeddings['embeddings']
-            batch_Y_masks = bert_embeddings['masks']
-
-            perturbed_sentences, batch_Y_masks, batch_Y = perturber.perturb(
-                sentences[bs:be],
-                batch_Y_masks,
-                batch_Y)
-
-            sentence_tokens = char_tokenizer.tokenize(perturbed_sentences)
-
-            batch_lengths = [ len(tokens) for tokens in sentence_tokens ]
-            max_length = max(batch_lengths)
-            batch_X = torch.zeros((num_examples_in_batch, max_length),
-                dtype=torch.int)
-
-            for j, tokens in enumerate(sentence_tokens):
-                # There HAS to be a nicer way to do this... :(
-                batch_X[j,:len(tokens)] = torch.IntTensor(tokens)
-
-            batch_X = batch_X.to(device)
-
-            batch_Y = batch_Y.to(device)
-            batch_Y_masks = batch_Y_masks.to(device)
-
-            model.zero_grad()
-            model.train()
-
-            batch_preds, batch_pred_masks = model(batch_X, batch_lengths)
-            batch_emb_loss = \
-                loss(batch_preds * batch_Y_masks.unsqueeze(2), batch_Y)
-            batch_emb_variance = \
-                float(torch.mean(torch.std(batch_Y, (0, 1), unbiased=False) ** 2))
-            batch_mask_loss = loss(batch_pred_masks,  batch_Y_masks)
-            batch_mask_variance = \
-                float(torch.std(batch_Y_masks, unbiased=False) ** 2)
-
-            loss_multiplier = float(batch_mask_loss) / float(batch_emb_loss)
-            batch_combined_loss = batch_emb_loss * loss_multiplier + batch_mask_loss
-
-            batch_correct = 0
-            batch_total = 0
-            batch_positive = 0
-
-            for idx, length in enumerate(batch_lengths):
-                batch_total += length
-                batch_correct += int(sum(torch.isclose(torch.round(batch_pred_masks[idx][:length]), batch_Y_masks[idx][:length])))
-                batch_positive += int(sum(batch_Y_masks[idx][:length]))
-
-            mask_accuracy = batch_correct / batch_total
-
-            batch_combined_loss.backward()
-            optimizer.step()
-
-            print("%04d-%04d: embedding loss: %f, mask loss: %f, mask accuracy: %f (%f positive examples in batch)" %
-                (epoch, i, batch_emb_loss / batch_emb_variance, batch_mask_loss / batch_mask_variance, mask_accuracy, batch_positive / batch_total))
-
-    model.eval()
-    char_tokenizer.extend_vocab = False
     test_sentences = [
       "my hovercraft is full of eels!",
       "common sense is the least common of all the senses",
@@ -124,24 +164,11 @@ if __name__ == '__main__':
       "my hovercra ft is full of eels! ",
     ]
 
-    test_sentence_tokens = char_tokenizer.tokenize(test_sentences)
-    test_lengths = [ len(sentence) for sentence in test_sentence_tokens ]
-    test_max_length = max(test_lengths)
+    embedded = runner.embed(test_sentences)
 
-    X = torch.zeros((len(test_sentences), test_max_length), dtype=torch.int)
-    for j, tokens in enumerate(test_sentence_tokens):
-        X[j,:len(tokens)] = torch.IntTensor(tokens)
-    X = X.to(device)
+    sanitized, _ = runner.inverse_embed(embedded)
 
-    test_embedded = model.predict_embeddings(X, test_lengths)
-
-    bert_embedding = embedder.model.embeddings.word_embeddings
-
-    res = torch.matmul(test_embedded[0], bert_embedding.weight.data.T)
-
-    res_list = torch.argmax(res, dim=2).cpu().tolist()
-    print(res_list)
-
-    for i, item in enumerate(res_list):
+    for i, item in enumerate(sanitized):
         print("Original sentence: {}".format(test_sentences[i]))
-        print("Reconstructed    : {}".format(" ".join(embedder.tokenizer.convert_ids_to_tokens(item))))
+        print("Reconstructed    : {}".format(item))
+
