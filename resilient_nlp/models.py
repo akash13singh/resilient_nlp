@@ -59,5 +59,5 @@ class LSTMModel(nn.Module):
     def save(self, path):
         torch.save(self.state_dict(), path)
 
-    def load(self, path):
-        torch.load(self.state_dict(), path)
+    def load(self, path, device):
+        self.load_state_dict(torch.load(path, map_location=torch.device(device)))
