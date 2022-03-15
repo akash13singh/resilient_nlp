@@ -1,5 +1,6 @@
 import json
 import math
+import os
 import random
 import torch
 import torch.nn as nn
@@ -9,58 +10,20 @@ import sys
 from resilient_nlp.char_tokenizer import CharTokenizer
 from resilient_nlp.corpora import BookCorpus
 from resilient_nlp.embedders import BertEmbedder
+from resilient_nlp.models import LSTMModel
 from resilient_nlp.perturbers import NullPerturber, ToyPerturber
 
-# TODO: These shouldn't be consumed directly by LSTMModel
+NUM_EPOCHS = 2
+BATCH_SIZE = 64
+
 NUM_TOKENS = 1000
 NUM_SENTENCES = 64000
 CHAR_EMB_SIZE = 768
 HIDDEN_SIZE = 768
 NUM_LSTM_LAYERS = 3
 
-class LSTMModel(nn.Module):
-    def __init__(self, word_emb_size):
-        super(LSTMModel, self).__init__()
-        self.embedding = nn.Embedding(NUM_TOKENS, CHAR_EMB_SIZE)
-        self.lstm = nn.LSTM(input_size=CHAR_EMB_SIZE, hidden_size=HIDDEN_SIZE,
-                            batch_first=True, bidirectional=True,
-                            num_layers=NUM_LSTM_LAYERS)
-        self.dense = nn.Linear(2 * HIDDEN_SIZE, word_emb_size)
-        self.gate = nn.Linear(2 * HIDDEN_SIZE, 1)
-        self.gate_activation = nn.Sigmoid()
-
-    def forward(self, X, lengths):
-        embedded = self.embedding(X)
-        max_length = X.shape[1]
-        packed = nn.utils.rnn.pack_padded_sequence(embedded, lengths,
-            batch_first=True, enforce_sorted=False)
-        lstm_hidden_packed, lstm_cell_packed = self.lstm(packed)
-        lstm_hidden, _ = nn.utils.rnn.pad_packed_sequence(lstm_hidden_packed,
-            batch_first=True, total_length=max_length)
-        dense_result = nn.Tanh()(self.dense(lstm_hidden))
-        gate_result = self.gate_activation(self.gate(lstm_hidden))
-
-        return dense_result, gate_result.squeeze(2)
-
-    def predict_embeddings(self, X, lengths):
-        dense_result, gate_result = self.forward(X, lengths)
-
-        gate_result = torch.round(gate_result).unsqueeze(2)
-
-        token_nums = torch.sum(gate_result, dim=(1, 2))
-        max_tokens = int(torch.max(token_nums))
-
-        result = torch.zeros((dense_result.shape[0], max_tokens, dense_result.shape[2]),
-            dtype=torch.float)
-
-        for i in range(dense_result.shape[0]):
-            token_idx = 0
-            for j in range(dense_result.shape[1]):
-                if gate_result[i][j][0] == 1.0:
-                    result[i][token_idx] = dense_result[i][j]
-                    token_idx += 1
-
-        return result.detach(), token_nums.detach()
+# FIXME - this is hardcoded for bert-base
+WORD_EMB_SIZE = 768
 
 if __name__ == '__main__':
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
@@ -77,19 +40,20 @@ if __name__ == '__main__':
 
     num_samples = len(sentences)
 
-    model = LSTMModel(768).to(device)
+    model = LSTMModel(word_emb_size=WORD_EMB_SIZE, char_emb_size=CHAR_EMB_SIZE,
+        num_tokens=NUM_TOKENS, hidden_size=HIDDEN_SIZE,
+        num_layers=NUM_LSTM_LAYERS).to(device)
+
     loss = nn.MSELoss()
     optimizer = optim.Adam(model.parameters(), lr=0.001)
 
-    batch_size = 64
-    num_batches = math.ceil(len(sentences) / batch_size)
-    num_epochs = 2
+    num_batches = math.ceil(len(sentences) / BATCH_SIZE)
 
-    for epoch in range(num_epochs):
+    for epoch in range(NUM_EPOCHS):
         for i in range(num_batches):
-            bs = i*batch_size
-            be = bs + batch_size
-            num_examples_in_batch = min(batch_size, num_samples - bs)
+            bs = i * BATCH_SIZE
+            be = bs + BATCH_SIZE
+            num_examples_in_batch = min(BATCH_SIZE, num_samples - bs)
 
             bert_embeddings = embedder.embed(sentences[bs:be])
 

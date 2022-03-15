@@ -1,3 +1,4 @@
+import json
 
 class CharTokenizer:
     def __init__(self,
@@ -31,3 +32,12 @@ class CharTokenizer:
             result.append(tokens)
 
         return result
+
+    def save_vocab(self, path):
+        with open(path, 'w') as f:
+            json.dump(self.vocab, file=f)
+
+    def load_vocab(self, path):
+        with open(path) as f:
+            self.vocab = json.load(file=f)
+            self.vocab_map = { c: index for index, c in enumerate(self.vocab) }
