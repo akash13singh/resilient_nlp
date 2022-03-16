@@ -33,13 +33,19 @@ class ExperimentRunner:
         self.model = LSTMModel(word_emb_size=WORD_EMB_SIZE,
             char_emb_size=CHAR_EMB_SIZE, num_tokens=NUM_TOKENS,
             hidden_size=HIDDEN_SIZE, num_layers=NUM_LSTM_LAYERS).to(device)
-        self.char_tokenizer = CharTokenizer(max_vocab=NUM_TOKENS)
-        self.embedder = BertEmbedder(per_character_embedding=True)
+        self.char_tokenizer = CharTokenizer(
+            max_vocab=NUM_TOKENS, initial_vocab = [ '<unk>', '<s>', '</s>' ],
+            start_index=1, end_index=2)
+        self.embedder = BertEmbedder(
+            per_character_embedding=True,
+            add_special_tokens=False,
+            start_char_present=True,
+            end_char_present=True)
 
     def train(self, num_sentences):
         corpus = BookCorpus()
         # perturber = NullPerturber()
-        perturber = ToyPerturber()
+        perturber = ToyPerturber(start_char_present=True, end_char_present=True)
 
         # Ensure consistent sample
         random.seed(11)
@@ -164,9 +170,7 @@ if __name__ == '__main__':
       "my hovercra ft is full of eels! ",
     ]
 
-    embedded = runner.embed(test_sentences)
-
-    sanitized, _ = runner.inverse_embed(embedded)
+    sanitized = runner.sanitize(test_sentences)
 
     for i, item in enumerate(sanitized):
         print("Original sentence: {}".format(test_sentences[i]))
