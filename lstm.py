@@ -143,12 +143,24 @@ class ExperimentRunner:
     def inverse_embed(self, embedded):
         bert_embedding = self.embedder.model.embeddings.word_embeddings
 
-        res = torch.matmul(embedded[0], bert_embedding.weight.data.T)
+        # cosine distance
+        #res = torch.matmul(embedded[0], bert_embedding.weight.data.T)
 
-        norm_factor = torch.sum(bert_embedding.weight.data ** 2, dim=1).view(1, 1, -1)
-        res = res / norm_factor
+        #norm_factor = torch.sum(bert_embedding.weight.data ** 2, dim=1).view(1, 1, -1)
+        #res = res / norm_factor
 
-        res_token_list = torch.argmax(res, dim=2).cpu().tolist()
+        # res_token_list = torch.argmax(res, dim=2).cpu().tolist()
+
+        # euclidean distance
+        embedding_weights = bert_embedding.weight.data
+        expanded_weights = embedding_weights.view(
+            1, embedding_weights.shape[0], embedding_weights.shape[1])
+        expanded_weights = expanded_weights.expand(
+            embedded[0].shape[0], embedding_weights.shape[0], embedding_weights.shape[1])
+
+        res = torch.cdist(embedded[0], expanded_weights)
+
+        res_token_list = torch.argmin(res, dim=2).cpu().tolist()
 
         res_sentences = []
 
