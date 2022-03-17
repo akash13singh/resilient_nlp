@@ -143,6 +143,9 @@ class ExperimentRunner:
 
         res = torch.matmul(embedded[0], bert_embedding.weight.data.T)
 
+        norm_factor = torch.sum(bert_embedding.weight.data ** 2, dim=1).view(1, 1, -1)
+        res = res / norm_factor
+
         res_token_list = torch.argmax(res, dim=2).cpu().tolist()
 
         res_sentences = []
