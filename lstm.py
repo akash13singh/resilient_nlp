@@ -135,16 +135,28 @@ class ExperimentRunner:
             X[j,:len(tokens)] = torch.IntTensor(tokens)
         X = X.to(self.device)
 
-        embedded = self.model.predict_embeddings(X, lengths,
+        embeddings, emb_lengths = self.model.predict_embeddings(X, lengths,
             start_token=start_token, end_token=end_token, pad_token=pad_token)
 
-        return embedded
+        max_emb_length = max(emb_lengths)
+
+        attention_mask = torch.IntTensor(
+            [
+                [1] * length + [0] * (max_emb_length - length)
+                for length in emb_lengths.tolist()
+            ]
+        )
+
+        return {
+            'inputs_embeds': embeddings,
+            'attention_mask': attention_mask,
+        }
 
     def inverse_embed(self, embedded):
         bert_embedding = self.embedder.model.embeddings.word_embeddings
 
         # cosine distance
-        #res = torch.matmul(embedded[0], bert_embedding.weight.data.T)
+        #res = torch.matmul(embedded['inputs_embeds'], bert_embedding.weight.data.T)
 
         #norm_factor = torch.sum(bert_embedding.weight.data ** 2, dim=1).view(1, 1, -1)
         #res = res / norm_factor
@@ -156,9 +168,9 @@ class ExperimentRunner:
         expanded_weights = embedding_weights.view(
             1, embedding_weights.shape[0], embedding_weights.shape[1])
         expanded_weights = expanded_weights.expand(
-            embedded[0].shape[0], embedding_weights.shape[0], embedding_weights.shape[1])
+            embedded['inputs_embeds'].shape[0], embedding_weights.shape[0], embedding_weights.shape[1])
 
-        res = torch.cdist(embedded[0], expanded_weights)
+        res = torch.cdist(embedded['inputs_embeds'], expanded_weights)
 
         res_token_list = torch.argmin(res, dim=2).cpu().tolist()
 

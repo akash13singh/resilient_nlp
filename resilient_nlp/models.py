@@ -42,13 +42,13 @@ class LSTMModel(nn.Module):
             pad_token=None):
         dense_result, gate_result = self.forward(X, lengths)
 
-        gate_result = torch.round(gate_result).unsqueeze(2)
+        gate_result = torch.round(gate_result).int().unsqueeze(2)
 
         leading_offset = int(start_token is not None)
         trailing_offset = int(end_token is not None)
 
-        token_nums = torch.sum(gate_result, dim=(1, 2))
-        max_tokens = int(torch.max(token_nums)) + leading_offset + trailing_offset
+        token_nums = torch.sum(gate_result, dim=(1, 2)) + leading_offset + trailing_offset
+        max_tokens = int(torch.max(token_nums))
 
         result = torch.zeros((dense_result.shape[0], max_tokens, dense_result.shape[2]),
             dtype=torch.float)
