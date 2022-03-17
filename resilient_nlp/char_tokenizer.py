@@ -36,7 +36,7 @@ class CharTokenizer:
                     self.vocab_map[c] = len(self.vocab)
                     self.vocab.append(c)
                 else:
-                    tokens.append(unk_index)
+                    tokens.append(self.unk_index)
             if self.end_index is not None:
                 tokens.append(self.end_index)
             result.append(tokens)
