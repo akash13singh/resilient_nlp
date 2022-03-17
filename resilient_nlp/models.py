@@ -36,23 +36,37 @@ class LSTMModel(nn.Module):
 
         return dense_result, gate_result.squeeze(2)
 
-    def predict_embeddings(self, X, lengths):
+    def predict_embeddings(self, X, lengths, start_token=None, end_token=None,
+            pad_token=None):
         dense_result, gate_result = self.forward(X, lengths)
 
         gate_result = torch.round(gate_result).unsqueeze(2)
 
+        leading_offset = int(start_token is not None)
+        trailing_offset = int(end_token is not None)
+
         token_nums = torch.sum(gate_result, dim=(1, 2))
-        max_tokens = int(torch.max(token_nums))
+        max_tokens = int(torch.max(token_nums)) + leading_offset + trailing_offset
 
         result = torch.zeros((dense_result.shape[0], max_tokens, dense_result.shape[2]),
             dtype=torch.float)
 
         for i in range(dense_result.shape[0]):
             token_idx = 0
+            if start_token is not None:
+                result[i][token_idx] = start_token
+                token_idx += 1
+
             for j in range(dense_result.shape[1]):
                 if gate_result[i][j][0] == 1.0:
                     result[i][token_idx] = dense_result[i][j]
                     token_idx += 1
+            if end_token is not None:
+                result[i][token_idx] = end_token
+                token_idx += 1
+        while pad_token is not None and token_idx < max_tokens:
+            result[i][token_idx] = pad_token
+            token_idx += 1
 
         return result.detach(), token_nums.detach()
 

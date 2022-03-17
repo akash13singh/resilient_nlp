@@ -123,9 +123,10 @@ class ExperimentRunner:
                 print("%04d-%04d: embedding loss: %f, mask loss: %f, mask accuracy: %f (%f positive examples in batch)" %
                     (epoch, i, batch_emb_loss / batch_emb_variance, batch_mask_loss / batch_mask_variance, mask_accuracy, batch_positive / batch_total))
 
-    def embed(self, sentences):
+    def embed(self, sentences, start_token=None, end_token=None, pad_token=None):
         self.model.eval()
         sentence_tokens = self.char_tokenizer.tokenize(sentences, extend_vocab=False)
+
         lengths = [ len(sentence) for sentence in sentence_tokens ]
         max_length = max(lengths)
 
@@ -134,7 +135,8 @@ class ExperimentRunner:
             X[j,:len(tokens)] = torch.IntTensor(tokens)
         X = X.to(self.device)
 
-        embedded = self.model.predict_embeddings(X, lengths)
+        embedded = self.model.predict_embeddings(X, lengths,
+            start_token=start_token, end_token=end_token, pad_token=pad_token)
 
         return embedded
 
