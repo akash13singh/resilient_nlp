@@ -1,5 +1,7 @@
 import torch
 import torch.nn as nn
+from transformers import BertModel
+from transformers.modeling_outputs import TokenClassifierOutput
 
 class LSTMModel(nn.Module):
     def __init__(self,
@@ -75,3 +77,28 @@ class LSTMModel(nn.Module):
 
     def load(self, path, device):
         self.load_state_dict(torch.load(path, map_location=torch.device(device)))
+
+
+class BertClassifier(nn.Module):
+    def __init__(self, checkpoint, n_classes):
+        super().__init__()
+        self.n_classes = n_classes
+        self.model = BertModel.from_pretrained(checkpoint, num_labels=self.n_classes)
+        self.dropout = nn.Dropout(0.1)
+        self.hidden_dim = self.model.embeddings.word_embeddings.embedding_dim
+        self.classifier_layer = nn.Linear(self.hidden_dim, self.n_classes)
+
+    def forward(self, input_ids=None, attention_mask=None, labels=None, token_type_ids=None):
+        outputs = self.model(input_ids=input_ids, attention_mask=attention_mask, )
+        cls_rep = outputs['last_hidden_state'][:, 0, :]
+        cls_rep = self.dropout(cls_rep)
+        logits = self.classifier_layer(cls_rep)
+
+        loss = None
+        if labels is not None:
+            # print(logits.shape, labels.shape)
+            loss_fct = nn.CrossEntropyLoss()
+            loss = loss_fct(logits, labels)
+
+        return TokenClassifierOutput(loss=loss, logits=logits, hidden_states=outputs.hidden_states,
+                                     attentions=outputs.attentions)
