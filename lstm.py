@@ -123,27 +123,55 @@ class ExperimentRunner:
                 print("%04d-%04d: embedding loss: %f, mask loss: %f, mask accuracy: %f (%f positive examples in batch)" %
                     (epoch, i, batch_emb_loss / batch_emb_variance, batch_mask_loss / batch_mask_variance, mask_accuracy, batch_positive / batch_total))
 
-    def embed(self, sentences, start_token=None, end_token=None, pad_token=None):
+    def embed(self,
+              sentences=None,
+              sentence_tokens=None,
+              start_token=None,
+              end_token=None,
+              pad_token=None):
         self.model.eval()
-        sentence_tokens = self.char_tokenizer.tokenize(sentences, extend_vocab=False)
+
+        assert(sentences is not None or sentence_tokens is not None)
+
+        if sentences is not None:
+            sentence_tokens = self.char_tokenizer.tokenize(sentences, extend_vocab=False)
 
         lengths = [ len(sentence) for sentence in sentence_tokens ]
         max_length = max(lengths)
+        emb_lengths = []
 
-        X = torch.zeros((len(sentences), max_length), dtype=torch.int)
-        for j, tokens in enumerate(sentence_tokens):
-            X[j,:len(tokens)] = torch.IntTensor(tokens)
-        X = X.to(self.device)
+        num_batches = math.ceil(len(sentence_tokens) / BATCH_SIZE)
+        batch_embeddings = []
+        for i in range(num_batches):
+            bs = i * BATCH_SIZE
+            be = min(bs + BATCH_SIZE, len(sentence_tokens))
+            num_examples_in_batch = be - bs
 
-        embeddings, emb_lengths = self.model.predict_embeddings(X, lengths,
-            start_token=start_token, end_token=end_token, pad_token=pad_token)
+            X = torch.zeros((num_examples_in_batch, max_length), dtype=torch.int)
+            for j, tokens in enumerate(sentence_tokens[bs:be]):
+                X[j,:len(tokens)] = torch.IntTensor(tokens)
+            X = X.to(self.device)
+
+            batch_embedding, batch_emb_lengths = self.model.predict_embeddings(X, lengths[bs:be],
+                start_token=start_token, end_token=end_token, pad_token=pad_token)
+            batch_embeddings.append(batch_embedding)
+            emb_lengths += batch_emb_lengths.tolist()
 
         max_emb_length = max(emb_lengths)
+        embeddings = torch.zeros((len(sentence_tokens), max_emb_length, WORD_EMB_SIZE), dtype=torch.float)
+
+        for i in range(num_batches):
+            bs = i * BATCH_SIZE
+            be = min(bs + BATCH_SIZE, len(sentence_tokens))
+            num_examples_in_batch = be - bs
+            batch_embedding = batch_embeddings[i]
+
+            embeddings[bs:be,:batch_embedding.shape[1]] = batch_embedding
 
         attention_mask = torch.IntTensor(
             [
                 [1] * length + [0] * (max_emb_length - length)
-                for length in emb_lengths.tolist()
+                for length in emb_lengths
             ]
         )
 
