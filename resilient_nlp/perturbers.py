@@ -48,7 +48,7 @@ class ToyPerturber:
                     temp_embedding.append(embeddings[i][0])
 
             for j, char in enumerate(input):
-                if char.isspace():
+                if not char.isalpha():
                     if len(cur_word) >= 7 and \
                             random.random() < self.split_long_words_prob:
                         split = random.randint(3, len(cur_word) - 3)
@@ -190,7 +190,7 @@ class WordScramblerPerturber:
                     temp_embedding.append(embeddings[i][0])
 
             for j, char in enumerate(input):
-                if char.isspace():
+                if not char.isalpha():
                     should_perturb = random.random() < self.perturb_prob
 
                     if should_perturb and len(cur_word) >= 4 and \
