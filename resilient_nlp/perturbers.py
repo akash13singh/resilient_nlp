@@ -23,7 +23,7 @@ class ToyPerturber:
         self.start_char_present = start_char_present
         self.end_char_present = end_char_present
 
-    def perturb(self, inputs, masks, embeddings):
+    def perturb(self, inputs, masks=None, embeddings=None):
         new_inputs = []
         new_masks = []
         new_embeddings = []
@@ -34,15 +34,18 @@ class ToyPerturber:
             # add whitespace to long words
             temp_output = ""
             cur_word = ""
-            cur_word_embedding = []
-            cur_word_mask = []
             input = inputs[i] + " "
-            temp_mask = []
+            if masks is not None:
+                cur_word_mask = []
+                temp_mask = []
+            cur_word_embedding = []
             temp_embedding = []
 
             if self.start_char_present:
-                temp_mask.append(masks[i][0])
-                temp_embedding.append(embeddings[i][0])
+                if masks is not None:
+                    temp_mask.append(masks[i][0])
+                if embeddings is not None:
+                    temp_embedding.append(embeddings[i][0])
 
             for j, char in enumerate(input):
                 if char.isspace():
@@ -54,39 +57,55 @@ class ToyPerturber:
                         temp_output += cur_word[split:]
 
                         for k in range(split):
-                            temp_mask.append(cur_word_mask[k])
-                            temp_embedding.append(cur_word_embedding[k])
+                            if masks is not None:
+                                temp_mask.append(cur_word_mask[k])
+                            if embeddings is not None:
+                                temp_embedding.append(cur_word_embedding[k])
 
-                        temp_mask.append(0.0)
-                        temp_embedding.append(
-                            torch.zeros((embeddings.shape[2]), dtype=torch.float))
+                        if masks is not None:
+                            temp_mask.append(0.0)
+                        if embeddings is not None:
+                            temp_embedding.append(
+                                torch.zeros((embeddings.shape[2]), dtype=torch.float))
 
                         for k in range(split, len(cur_word)):
-                            temp_mask.append(cur_word_mask[k])
-                            temp_embedding.append(cur_word_embedding[k])
+                            if masks is not None:
+                                temp_mask.append(cur_word_mask[k])
+                            if embeddings is not None:
+                                temp_embedding.append(cur_word_embedding[k])
                     else:
                         temp_output += cur_word
 
                         for k in range(len(cur_word)):
-                            temp_mask.append(cur_word_mask[k])
-                            temp_embedding.append(cur_word_embedding[k])
+                            if masks is not None:
+                                temp_mask.append(cur_word_mask[k])
+                            if embeddings is not None:
+                                temp_embedding.append(cur_word_embedding[k])
 
                     cur_word = ""
-                    cur_word_mask = []
-                    cur_word_embedding = []
+                    if masks is not None:
+                        cur_word_mask = []
+                    if embeddings is not None:
+                        cur_word_embedding = []
 
                     if j < len(input) - 1:
                         temp_output += char
-                        temp_mask.append(masks[i][leading_offset + j])
-                        temp_embedding.append(embeddings[i][leading_offset + j])
+                        if masks is not None:
+                            temp_mask.append(masks[i][leading_offset + j])
+                        if embeddings is not None:
+                            temp_embedding.append(embeddings[i][leading_offset + j])
                 else:
                     cur_word += char
-                    cur_word_mask.append(masks[i][leading_offset + j])
-                    cur_word_embedding.append(embeddings[i][leading_offset + j])
+                    if masks is not None:
+                        cur_word_mask.append(masks[i][leading_offset + j])
+                    if embeddings is not None:
+                        cur_word_embedding.append(embeddings[i][leading_offset + j])
 
             if self.end_char_present:
-                temp_mask.append(masks[i][-1])
-                temp_embedding.append(embeddings[i][-1])
+                if masks is not None:
+                    temp_mask.append(masks[i][-1])
+                if embeddings is not None:
+                    temp_embedding.append(embeddings[i][-1])
 
             input = temp_output
 
@@ -109,20 +128,30 @@ class ToyPerturber:
                     temp_output += char
 
             new_inputs.append(temp_output)
-            new_masks.append(temp_mask)
-            new_embeddings.append(temp_embedding)
+            if masks is not None:
+                new_masks.append(temp_mask)
+            if embeddings is not None:
+                new_embeddings.append(temp_embedding)
 
-        max_length = max([len(mask) for mask in new_masks])
-        out_masks = torch.zeros((len(new_inputs), max_length), dtype=torch.float)
-        out_embeddings = torch.zeros(
-            (len(new_inputs), max_length, embeddings.shape[2]), dtype=torch.float)
+        result = [ new_inputs ]
 
-        for batch in range(len(new_masks)):
-            for idx in range(len(new_masks[batch])):
-                out_masks[batch][idx] = new_masks[batch][idx]
-                out_embeddings[batch][idx] = new_embeddings[batch][idx]
+        if masks is not None:
+            max_length = max([len(mask) for mask in new_masks])
+            out_masks = torch.zeros((len(new_inputs), max_length), dtype=torch.float)
+            if embeddings is not None:
+                out_embeddings = torch.zeros(
+                    (len(new_inputs), max_length, embeddings.shape[2]), dtype=torch.float)
 
-        return new_inputs, out_masks, out_embeddings
+            for batch in range(len(new_masks)):
+                for idx in range(len(new_masks[batch])):
+                    out_masks[batch][idx] = new_masks[batch][idx]
+                    if embeddings is not None:
+                        out_embeddings[batch][idx] = new_embeddings[batch][idx]
+            result.append(out_masks)
+            if embeddings is not None:
+                result.append(out_embeddings)
+
+        return tuple(result)
 
 
 class WordScramblerPerturber:
@@ -136,7 +165,7 @@ class WordScramblerPerturber:
         self.start_char_present = start_char_present
         self.end_char_present = end_char_present
 
-    def perturb(self, inputs, masks, embeddings):
+    def perturb(self, inputs, masks=None, embeddings=None):
         new_inputs = []
         new_masks = []
         new_embeddings = []
@@ -144,18 +173,21 @@ class WordScramblerPerturber:
         leading_offset = int(self.start_char_present)
 
         for i in range(len(inputs)):
-            # add whitespace to long words
             temp_output = ""
             cur_word = ""
-            cur_word_embedding = []
-            cur_word_mask = []
             input = inputs[i] + " "
-            temp_mask = []
-            temp_embedding = []
+            if masks is not None:
+                cur_word_mask = []
+                temp_mask = []
+            if embeddings is not None:
+                cur_word_embedding = []
+                temp_embedding = []
 
             if self.start_char_present:
-                temp_mask.append(masks[i][0])
-                temp_embedding.append(embeddings[i][0])
+                if masks is not None:
+                    temp_mask.append(masks[i][0])
+                if embeddings is not None:
+                    temp_embedding.append(embeddings[i][0])
 
             for j, char in enumerate(input):
                 if char.isspace():
@@ -168,22 +200,30 @@ class WordScramblerPerturber:
 
                         temp_output += cur_word[:pos]
                         for k in range(pos):
-                            temp_mask.append(cur_word_mask[k])
-                            temp_embedding.append(cur_word_embedding[k])
+                            if masks is not None:
+                                temp_mask.append(cur_word_mask[k])
+                            if embeddings is not None:
+                                temp_embedding.append(cur_word_embedding[k])
 
                         # Revisit - where should the subword boundary be
                         # exactly? :(
                         temp_output += cur_word[pos+1]
-                        temp_mask.append(cur_word_mask[pos])
-                        temp_embedding.append(cur_word_embedding[pos])
+                        if masks is not None:
+                            temp_mask.append(cur_word_mask[pos])
+                        if embeddings is not None:
+                            temp_embedding.append(cur_word_embedding[pos])
                         temp_output += cur_word[pos]
-                        temp_mask.append(cur_word_mask[pos+1])
-                        temp_embedding.append(cur_word_embedding[pos+1])
+                        if masks is not None:
+                            temp_mask.append(cur_word_mask[pos+1])
+                        if embeddings is not None:
+                            temp_embedding.append(cur_word_embedding[pos+1])
 
                         temp_output += cur_word[pos+2:]
                         for k in range(pos+2, len(cur_word)):
-                            temp_mask.append(cur_word_mask[k])
-                            temp_embedding.append(cur_word_embedding[k])
+                            if masks is not None:
+                                temp_mask.append(cur_word_mask[k])
+                            if embeddings is not None:
+                                temp_embedding.append(cur_word_embedding[k])
 
                     elif should_perturb and len(cur_word) >= 3 and \
                             random.random() < 0.5:
@@ -192,27 +232,34 @@ class WordScramblerPerturber:
 
                         temp_output += cur_word[:pos]
                         for k in range(pos):
-                            temp_mask.append(cur_word_mask[k])
-                            temp_embedding.append(cur_word_embedding[k])
+                            if masks is not None:
+                                temp_mask.append(cur_word_mask[k])
+                            if embeddings is not None:
+                                temp_embedding.append(cur_word_embedding[k])
 
                         temp_output += cur_word[pos+1]
-                        if cur_word_mask[pos+1] == 1.0:
-                            if cur_word_mask[pos] == 1.0:
-                                # This means we have 2 consecutive letters that
-                                # are boundaries and we're deleting the first
-                                # one.
-                                #print('mask conflict')
-                                pass
-                            temp_mask.append(cur_word_mask[pos+1])
-                            temp_embedding.append(cur_word_embedding[pos+1])
-                        else:
-                            temp_mask.append(cur_word_mask[pos])
-                            temp_embedding.append(cur_word_embedding[pos])
+                        if masks is not None:
+                            if cur_word_mask[pos+1] == 1.0:
+                                if cur_word_mask[pos] == 1.0:
+                                    # This means we have 2 consecutive letters that
+                                    # are boundaries and we're deleting the first
+                                    # one.
+                                    #print('mask conflict')
+                                    pass
+                                temp_mask.append(cur_word_mask[pos+1])
+                                if embeddings is not None:
+                                    temp_embedding.append(cur_word_embedding[pos+1])
+                            else:
+                                temp_mask.append(cur_word_mask[pos])
+                                if embeddings is not None:
+                                    temp_embedding.append(cur_word_embedding[pos])
 
                         temp_output += cur_word[pos+2:]
                         for k in range(pos+2, len(cur_word)):
-                            temp_mask.append(cur_word_mask[k])
-                            temp_embedding.append(cur_word_embedding[k])
+                            if masks is not None:
+                                temp_mask.append(cur_word_mask[k])
+                            if embeddings is not None:
+                                temp_embedding.append(cur_word_embedding[k])
 
                     elif should_perturb and len(cur_word) >= 2:
                         # Insert char
@@ -221,54 +268,80 @@ class WordScramblerPerturber:
 
                         temp_output += cur_word[:pos]
                         for k in range(pos):
-                            temp_mask.append(cur_word_mask[k])
-                            temp_embedding.append(cur_word_embedding[k])
+                            if masks is not None:
+                                temp_mask.append(cur_word_mask[k])
+                            if embeddings is not None:
+                                temp_embedding.append(cur_word_embedding[k])
 
                         temp_output += new_char
-                        temp_mask.append(0.0)
-                        temp_embedding.append(
-                            torch.zeros((embeddings.shape[2]), dtype=torch.float))
+                        if masks is not None:
+                            temp_mask.append(0.0)
+                        if embeddings is not None:
+                            temp_embedding.append(
+                                torch.zeros((embeddings.shape[2]), dtype=torch.float))
 
                         temp_output += cur_word[pos:]
                         for k in range(pos, len(cur_word)):
-                            temp_mask.append(cur_word_mask[k])
-                            temp_embedding.append(cur_word_embedding[k])
+                            if masks is not None:
+                                temp_mask.append(cur_word_mask[k])
+                            if embeddings is not None:
+                                temp_embedding.append(cur_word_embedding[k])
                     else:
                         temp_output += cur_word
 
                         for k in range(len(cur_word)):
-                            temp_mask.append(cur_word_mask[k])
-                            temp_embedding.append(cur_word_embedding[k])
+                            if masks is not None:
+                                temp_mask.append(cur_word_mask[k])
+                            if embeddings is not None:
+                                temp_embedding.append(cur_word_embedding[k])
 
                     cur_word = ""
-                    cur_word_mask = []
-                    cur_word_embedding = []
+                    if masks is not None:
+                        cur_word_mask = []
+                    if embeddings is not None:
+                        cur_word_embedding = []
 
                     if j < len(input) - 1:
                         temp_output += char
-                        temp_mask.append(masks[i][leading_offset + j])
-                        temp_embedding.append(embeddings[i][leading_offset + j])
+                        if masks is not None:
+                            temp_mask.append(masks[i][leading_offset + j])
+                        if embeddings is not None:
+                            temp_embedding.append(embeddings[i][leading_offset + j])
                 else:
                     cur_word += char
-                    cur_word_mask.append(masks[i][leading_offset + j])
-                    cur_word_embedding.append(embeddings[i][leading_offset + j])
+                    if masks is not None:
+                        cur_word_mask.append(masks[i][leading_offset + j])
+                    if embeddings is not None:
+                        cur_word_embedding.append(embeddings[i][leading_offset + j])
 
             if self.end_char_present:
-                temp_mask.append(masks[i][-1])
-                temp_embedding.append(embeddings[i][-1])
+                if masks is not None:
+                    temp_mask.append(masks[i][-1])
+                if embeddings is not None:
+                    temp_embedding.append(embeddings[i][-1])
 
             new_inputs.append(temp_output)
-            new_masks.append(temp_mask)
-            new_embeddings.append(temp_embedding)
+            if masks is not None:
+                new_masks.append(temp_mask)
+            if embeddings is not None:
+                new_embeddings.append(temp_embedding)
 
-        max_length = max([len(mask) for mask in new_masks])
-        out_masks = torch.zeros((len(new_inputs), max_length), dtype=torch.float)
-        out_embeddings = torch.zeros(
-            (len(new_inputs), max_length, embeddings.shape[2]), dtype=torch.float)
+        result = [ new_inputs ]
 
-        for batch in range(len(new_masks)):
-            for idx in range(len(new_masks[batch])):
-                out_masks[batch][idx] = new_masks[batch][idx]
-                out_embeddings[batch][idx] = new_embeddings[batch][idx]
+        if masks is not None:
+            max_length = max([len(mask) for mask in new_masks])
+            out_masks = torch.zeros((len(new_inputs), max_length), dtype=torch.float)
+            if embeddings is not None:
+                out_embeddings = torch.zeros(
+                    (len(new_inputs), max_length, embeddings.shape[2]), dtype=torch.float)
 
-        return new_inputs, out_masks, out_embeddings
+            for batch in range(len(new_masks)):
+                for idx in range(len(new_masks[batch])):
+                    out_masks[batch][idx] = new_masks[batch][idx]
+                    if embeddings is not None:
+                        out_embeddings[batch][idx] = new_embeddings[batch][idx]
+            result.append(out_masks)
+            if embeddings is not None:
+                result.append(out_embeddings)
+
+        return tuple(result)
