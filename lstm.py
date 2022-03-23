@@ -12,11 +12,13 @@ from resilient_nlp.char_tokenizer import CharTokenizer
 from resilient_nlp.corpora import BookCorpus
 from resilient_nlp.embedders import BertEmbedder
 from resilient_nlp.models import LSTMModel
-from resilient_nlp.perturbers import NullPerturber, ToyPerturber
+from resilient_nlp.perturbers import NullPerturber, ToyPerturber, \
+                                     WordScramblerPerturber
 
 NUM_EPOCHS = 2
 BATCH_SIZE = 64
 
+# NOTE: This is the character vocab size
 NUM_TOKENS = 1000
 NUM_SENTENCES = 64000
 CHAR_EMB_SIZE = 768
@@ -46,7 +48,8 @@ class ExperimentRunner:
     def train(self, num_sentences):
         corpus = BookCorpus()
         # perturber = NullPerturber()
-        perturber = ToyPerturber(start_char_present=True, end_char_present=True)
+        # perturber = ToyPerturber(start_char_present=True, end_char_present=True)
+        perturber = WordScramblerPerturber(start_char_present=True, end_char_present=True)
 
         # Ensure consistent sample
         random.seed(11)
@@ -128,7 +131,8 @@ class ExperimentRunner:
               sentence_tokens=None,
               start_token=None,
               end_token=None,
-              pad_token=None):
+              pad_token=None,
+              max_tokens=None):
         self.model.eval()
 
         assert(sentences is not None or sentence_tokens is not None)
@@ -153,7 +157,8 @@ class ExperimentRunner:
             X = X.to(self.device)
 
             batch_embedding, batch_emb_lengths = self.model.predict_embeddings(X, lengths[bs:be],
-                start_token=start_token, end_token=end_token, pad_token=pad_token)
+                start_token=start_token, end_token=end_token, pad_token=pad_token,
+                max_tokens=max_tokens)
             batch_embeddings.append(batch_embedding)
             emb_lengths += batch_emb_lengths.tolist()
 

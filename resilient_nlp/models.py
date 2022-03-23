@@ -39,7 +39,7 @@ class LSTMModel(nn.Module):
         return dense_result, gate_result.squeeze(2)
 
     def predict_embeddings(self, X, lengths, start_token=None, end_token=None,
-            pad_token=None):
+            pad_token=None, max_tokens=None):
         dense_result, gate_result = self.forward(X, lengths)
 
         gate_result = torch.round(gate_result).int().unsqueeze(2)
@@ -48,7 +48,12 @@ class LSTMModel(nn.Module):
         trailing_offset = int(end_token is not None)
 
         token_nums = torch.sum(gate_result, dim=(1, 2)) + leading_offset + trailing_offset
-        max_tokens = int(torch.max(token_nums))
+        max_actual_tokens = int(torch.max(token_nums))
+        if max_tokens is None:
+            max_tokens = max_actual_tokens
+        else:
+            max_tokens = min(max_tokens, max_actual_tokens)
+            token_nums = torch.clamp(token_nums, max=max_tokens)
 
         result = torch.zeros((dense_result.shape[0], max_tokens, dense_result.shape[2]),
             dtype=torch.float)
@@ -61,9 +66,11 @@ class LSTMModel(nn.Module):
 
             for j in range(dense_result.shape[1]):
                 if gate_result[i][j][0] == 1.0:
-                    result[i][token_idx] = dense_result[i][j]
-                    token_idx += 1
+                    if token_idx < max_tokens - trailing_offset:
+                        result[i][token_idx] = dense_result[i][j]
+                        token_idx += 1
             if end_token is not None:
+                assert(token_idx < max_tokens)
                 result[i][token_idx] = end_token
                 token_idx += 1
         while pad_token is not None and token_idx < max_tokens:
