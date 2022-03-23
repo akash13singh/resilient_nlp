@@ -10,7 +10,8 @@ class BertEmbedder:
                  start_char_present=False,
                  end_char_present=False):
         self.model_name = model_name
-        self.tokenizer_name = tokenizer_name or model_name
+        tokenizer_name = tokenizer_name or model_name
+        self.tokenizer_name = tokenizer_name
         self.add_special_tokens = add_special_tokens
         self.per_character_embedding = per_character_embedding
         self.tokenizer = BertTokenizerFast.from_pretrained(tokenizer_name,
