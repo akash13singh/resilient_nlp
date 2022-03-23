@@ -30,7 +30,7 @@ WORD_EMB_SIZE = 768
 
 
 class ExperimentRunner:
-    def __init__(self, device, model_name='bert-base-cased'):
+    def __init__(self, device, model_name='bert-base-cased', tokenizer_name=None):
         self.device = device
         self.model = LSTMModel(word_emb_size=WORD_EMB_SIZE,
             char_emb_size=CHAR_EMB_SIZE, num_tokens=NUM_TOKENS,
@@ -40,6 +40,7 @@ class ExperimentRunner:
             start_index=1, end_index=2)
         self.embedder = BertEmbedder(
             model_name=model_name,
+            tokenizer_name=tokenizer_name,
             per_character_embedding=True,
             add_special_tokens=False,
             start_char_present=True,

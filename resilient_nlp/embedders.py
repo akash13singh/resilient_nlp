@@ -4,14 +4,16 @@ from transformers import BertTokenizerFast, BertModel
 class BertEmbedder:
     def __init__(self,
                  model_name='bert-base-cased',
+                 tokenizer_name=None,
                  add_special_tokens=True,
                  per_character_embedding=False,
                  start_char_present=False,
                  end_char_present=False):
         self.model_name = model_name
+        self.tokenizer_name = tokenizer_name or model_name
         self.add_special_tokens = add_special_tokens
         self.per_character_embedding = per_character_embedding
-        self.tokenizer = BertTokenizerFast.from_pretrained(model_name,
+        self.tokenizer = BertTokenizerFast.from_pretrained(tokenizer_name,
             add_special_tokens=add_special_tokens)
         self.model = BertModel.from_pretrained(model_name)
         self.start_char_present = start_char_present
