@@ -217,14 +217,14 @@ class WordScramblerPerturber:
                     elif should_perturb and len(cur_word) >= 2:
                         # Insert char
                         pos = random.randint(1, len(cur_word) - 1)
-                        char = chr(ord('a') + random.randint(0, 25))
+                        new_char = chr(ord('a') + random.randint(0, 25))
 
                         temp_output += cur_word[:pos]
                         for k in range(pos):
                             temp_mask.append(cur_word_mask[k])
                             temp_embedding.append(cur_word_embedding[k])
 
-                        temp_output += char
+                        temp_output += new_char
                         temp_mask.append(0.0)
                         temp_embedding.append(
                             torch.zeros((embeddings.shape[2]), dtype=torch.float))
