@@ -159,11 +159,26 @@ class WordScramblerPerturber:
 
     def __init__(self,
                  perturb_prob=0.20,
+                 weight_add=1.0,
+                 weight_drop=1.0,
+                 weight_swap=1.0,
+                 weight_split_word=1.0,
+                 weight_merge_words=1.0,
                  start_char_present=False,
                  end_char_present=False):
         self.perturb_prob = perturb_prob
         self.start_char_present = start_char_present
         self.end_char_present = end_char_present
+        perturb_map = {
+            'add': weight_add,
+            'drop': weight_drop,
+            'swap': weight_swap,
+            'split': weight_split_word,
+            'merge': weight_merge_words,
+        }
+
+        self.perturb_options = [ k for k, v in perturb_map.items() if v > 0.0 ]
+        self.perturb_weights = [ v for k, v in perturb_map.items() if v > 0.0 ]
 
     def perturb(self, inputs, masks=None, embeddings=None):
         new_inputs = []
@@ -193,100 +208,156 @@ class WordScramblerPerturber:
                 if not char.isalpha():
                     should_perturb = random.random() < self.perturb_prob
 
-                    if should_perturb and len(cur_word) >= 4 and \
-                            random.random() < 1.0 / 3:
-                        # Swap chars
-                        pos = random.randint(1, len(cur_word) - 3)
+                    perturbation_applied = False
+                    ignore_char = False
 
-                        temp_output += cur_word[:pos]
-                        for k in range(pos):
-                            if masks is not None:
-                                temp_mask.append(cur_word_mask[k])
-                            if embeddings is not None:
-                                temp_embedding.append(cur_word_embedding[k])
+                    order = random.choices(self.perturb_options,
+                        weights=self.perturb_weights,
+                        k=len(self.perturb_options)) if should_perturb else []
 
-                        # Revisit - where should the subword boundary be
-                        # exactly? :(
-                        temp_output += cur_word[pos+1]
-                        if masks is not None:
-                            temp_mask.append(cur_word_mask[pos])
-                        if embeddings is not None:
-                            temp_embedding.append(cur_word_embedding[pos])
-                        temp_output += cur_word[pos]
-                        if masks is not None:
-                            temp_mask.append(cur_word_mask[pos+1])
-                        if embeddings is not None:
-                            temp_embedding.append(cur_word_embedding[pos+1])
+                    for op in order:
+                        if op == 'swap' and len(cur_word) >= 4:
+                            # Swap chars
+                            pos = random.randint(1, len(cur_word) - 3)
 
-                        temp_output += cur_word[pos+2:]
-                        for k in range(pos+2, len(cur_word)):
-                            if masks is not None:
-                                temp_mask.append(cur_word_mask[k])
-                            if embeddings is not None:
-                                temp_embedding.append(cur_word_embedding[k])
-
-                    elif should_perturb and len(cur_word) >= 3 and \
-                            random.random() < 0.5:
-                        # Remove char
-                        pos = random.randint(1, len(cur_word) - 2)
-
-                        temp_output += cur_word[:pos]
-                        for k in range(pos):
-                            if masks is not None:
-                                temp_mask.append(cur_word_mask[k])
-                            if embeddings is not None:
-                                temp_embedding.append(cur_word_embedding[k])
-
-                        temp_output += cur_word[pos+1]
-                        if masks is not None:
-                            if cur_word_mask[pos+1] == 1.0:
-                                if cur_word_mask[pos] == 1.0:
-                                    # This means we have 2 consecutive letters that
-                                    # are boundaries and we're deleting the first
-                                    # one.
-                                    #print('mask conflict')
-                                    pass
-                                temp_mask.append(cur_word_mask[pos+1])
+                            temp_output += cur_word[:pos]
+                            for k in range(pos):
+                                if masks is not None:
+                                    temp_mask.append(cur_word_mask[k])
                                 if embeddings is not None:
-                                    temp_embedding.append(cur_word_embedding[pos+1])
-                            else:
+                                    temp_embedding.append(cur_word_embedding[k])
+
+                            # Revisit - where should the subword boundary be
+                            # exactly? :(
+                            temp_output += cur_word[pos+1]
+                            if masks is not None:
                                 temp_mask.append(cur_word_mask[pos])
+                            if embeddings is not None:
+                                temp_embedding.append(cur_word_embedding[pos])
+                            temp_output += cur_word[pos]
+                            if masks is not None:
+                                temp_mask.append(cur_word_mask[pos+1])
+                            if embeddings is not None:
+                                temp_embedding.append(cur_word_embedding[pos+1])
+
+                            temp_output += cur_word[pos+2:]
+                            for k in range(pos+2, len(cur_word)):
+                                if masks is not None:
+                                    temp_mask.append(cur_word_mask[k])
                                 if embeddings is not None:
-                                    temp_embedding.append(cur_word_embedding[pos])
+                                    temp_embedding.append(cur_word_embedding[k])
 
-                        temp_output += cur_word[pos+2:]
-                        for k in range(pos+2, len(cur_word)):
+                            perturbation_applied = True
+                            break
+
+                        elif op == 'drop' and len(cur_word) >= 3:
+                            # Remove char
+                            pos = random.randint(1, len(cur_word) - 2)
+
+                            temp_output += cur_word[:pos]
+                            for k in range(pos):
+                                if masks is not None:
+                                    temp_mask.append(cur_word_mask[k])
+                                if embeddings is not None:
+                                    temp_embedding.append(cur_word_embedding[k])
+
+                            temp_output += cur_word[pos+1]
                             if masks is not None:
-                                temp_mask.append(cur_word_mask[k])
-                            if embeddings is not None:
-                                temp_embedding.append(cur_word_embedding[k])
+                                if cur_word_mask[pos+1] == 1.0:
+                                    if cur_word_mask[pos] == 1.0:
+                                        # This means we have 2 consecutive letters that
+                                        # are boundaries and we're deleting the first
+                                        # one.
+                                        #print('mask conflict')
+                                        pass
+                                    temp_mask.append(cur_word_mask[pos+1])
+                                    if embeddings is not None:
+                                        temp_embedding.append(cur_word_embedding[pos+1])
+                                else:
+                                    temp_mask.append(cur_word_mask[pos])
+                                    if embeddings is not None:
+                                        temp_embedding.append(cur_word_embedding[pos])
 
-                    elif should_perturb and len(cur_word) >= 2:
-                        # Insert char
-                        pos = random.randint(1, len(cur_word) - 1)
-                        new_char = chr(ord('a') + random.randint(0, 25))
+                            temp_output += cur_word[pos+2:]
+                            for k in range(pos+2, len(cur_word)):
+                                if masks is not None:
+                                    temp_mask.append(cur_word_mask[k])
+                                if embeddings is not None:
+                                    temp_embedding.append(cur_word_embedding[k])
 
-                        temp_output += cur_word[:pos]
-                        for k in range(pos):
+                            perturbation_applied = True
+                            break
+
+                        elif op == 'add' and len(cur_word) >= 2:
+                            # Insert char
+                            pos = random.randint(1, len(cur_word) - 1)
+                            new_char = chr(ord('a') + random.randint(0, 25))
+
+                            temp_output += cur_word[:pos]
+                            for k in range(pos):
+                                if masks is not None:
+                                    temp_mask.append(cur_word_mask[k])
+                                if embeddings is not None:
+                                    temp_embedding.append(cur_word_embedding[k])
+
+                            temp_output += new_char
                             if masks is not None:
-                                temp_mask.append(cur_word_mask[k])
+                                temp_mask.append(0.0)
                             if embeddings is not None:
-                                temp_embedding.append(cur_word_embedding[k])
+                                temp_embedding.append(
+                                    torch.zeros((embeddings.shape[2]), dtype=torch.float))
 
-                        temp_output += new_char
-                        if masks is not None:
-                            temp_mask.append(0.0)
-                        if embeddings is not None:
-                            temp_embedding.append(
-                                torch.zeros((embeddings.shape[2]), dtype=torch.float))
+                            temp_output += cur_word[pos:]
+                            for k in range(pos, len(cur_word)):
+                                if masks is not None:
+                                    temp_mask.append(cur_word_mask[k])
+                                if embeddings is not None:
+                                    temp_embedding.append(cur_word_embedding[k])
 
-                        temp_output += cur_word[pos:]
-                        for k in range(pos, len(cur_word)):
+                            perturbation_applied = True
+                            break
+
+                        elif op == 'split' and len(cur_word) >= 6:
+                            split = random.randint(3, len(cur_word) - 3)
+                            temp_output += cur_word[:split]
+
+                            for k in range(split):
+                                if masks is not None:
+                                    temp_mask.append(cur_word_mask[k])
+                                if embeddings is not None:
+                                    temp_embedding.append(cur_word_embedding[k])
+
+                            temp_output += " "
+
                             if masks is not None:
-                                temp_mask.append(cur_word_mask[k])
+                                temp_mask.append(0.0)
                             if embeddings is not None:
-                                temp_embedding.append(cur_word_embedding[k])
-                    else:
+                                temp_embedding.append(
+                                    torch.zeros((embeddings.shape[2]), dtype=torch.float))
+
+                            temp_output += cur_word[split:]
+
+                            for k in range(split, len(cur_word)):
+                                if masks is not None:
+                                    temp_mask.append(cur_word_mask[k])
+                                if embeddings is not None:
+                                    temp_embedding.append(cur_word_embedding[k])
+
+                            perturbation_applied = True
+                            break
+
+                        elif op == 'merge':
+                            if (j >= 1 and
+                                j < len(input) - 1 and
+                                input[j].isspace() and
+                                input[j-1].isalpha() and
+                                input[j+1].isalpha()):
+                                # We can merge the words by ignoring the char
+                                ignore_char = True
+                                perturbation_applied = True
+                                break
+
+                    if not perturbation_applied:
                         temp_output += cur_word
 
                         for k in range(len(cur_word)):
@@ -295,18 +366,19 @@ class WordScramblerPerturber:
                             if embeddings is not None:
                                 temp_embedding.append(cur_word_embedding[k])
 
-                    cur_word = ""
-                    if masks is not None:
-                        cur_word_mask = []
-                    if embeddings is not None:
-                        cur_word_embedding = []
-
-                    if j < len(input) - 1:
-                        temp_output += char
+                    if not ignore_char:
+                        cur_word = ""
                         if masks is not None:
-                            temp_mask.append(masks[i][leading_offset + j])
+                            cur_word_mask = []
                         if embeddings is not None:
-                            temp_embedding.append(embeddings[i][leading_offset + j])
+                            cur_word_embedding = []
+
+                        if j < len(input) - 1:
+                            temp_output += char
+                            if masks is not None:
+                                temp_mask.append(masks[i][leading_offset + j])
+                            if embeddings is not None:
+                                temp_embedding.append(embeddings[i][leading_offset + j])
                 else:
                     cur_word += char
                     if masks is not None:
