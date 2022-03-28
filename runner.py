@@ -66,7 +66,7 @@ class ExperimentRunner:
             start_char_present=True,
             end_char_present=True)
 
-    def train(self, num_sentences):
+    def train(self, num_sentences, num_eval_sentences=0, print_batch_stats=False):
         corpus = BookCorpus()
         # perturber = NullPerturber()
         # perturber = ToyPerturber(start_char_present=True, end_char_present=True)
@@ -74,20 +74,26 @@ class ExperimentRunner:
 
         # Ensure consistent sample
         random.seed(11)
-        sentences = corpus.sample_items(num_sentences)
-
-        num_samples = len(sentences)
+        all_sentences = corpus.sample_items(num_sentences + num_eval_sentences)
+        sentences = all_sentences[:num_sentences]
+        eval_sentences = all_sentences[num_sentences:]
 
         loss = nn.MSELoss()
         optimizer = optim.Adam(self.model.parameters(), lr=0.001)
 
-        num_batches = math.ceil(len(sentences) / BATCH_SIZE)
+        num_batches = math.ceil(num_sentences / BATCH_SIZE)
 
         for epoch in range(NUM_EPOCHS):
+            epoch_correct = 0
+            epoch_total = 0
+            epoch_emb_loss = 0.0
+            epoch_emb_variance = 0.0
+            epoch_mask_loss = 0.0
+            epoch_mask_variance = 0.0
             for i in range(num_batches):
                 bs = i * BATCH_SIZE
                 be = bs + BATCH_SIZE
-                num_examples_in_batch = min(BATCH_SIZE, num_samples - bs)
+                num_examples_in_batch = min(BATCH_SIZE, num_sentences - bs)
 
                 bert_embeddings = self.embedder.embed(sentences[bs:be])
 
@@ -119,16 +125,21 @@ class ExperimentRunner:
                 self.model.train()
 
                 batch_preds, batch_pred_masks = self.model(batch_X, batch_lengths)
-                batch_emb_loss = \
+                batch_emb_loss = num_examples_in_batch * \
                     loss(batch_preds * batch_Y_masks.unsqueeze(2), batch_Y)
-                batch_emb_variance = \
-                    float(torch.mean(torch.std(batch_Y, (0, 1), unbiased=False) ** 2))
-                batch_mask_loss = loss(batch_pred_masks,  batch_Y_masks)
-                batch_mask_variance = \
-                    float(torch.std(batch_Y_masks, unbiased=False) ** 2)
+                batch_emb_variance = num_examples_in_batch * \
+                    float(torch.mean(torch.var(batch_Y, (0, 1), unbiased=False)))
+                batch_mask_loss = num_examples_in_batch * loss(batch_pred_masks,  batch_Y_masks)
+                batch_mask_variance = num_examples_in_batch * \
+                    float(torch.var(batch_Y_masks, unbiased=False))
+
+                epoch_emb_loss += float(batch_emb_loss)
+                epoch_emb_variance += batch_emb_variance
+                epoch_mask_loss += float(batch_mask_loss)
+                epoch_mask_variance += batch_mask_variance
 
                 loss_multiplier = float(batch_mask_loss) / float(batch_emb_loss)
-                batch_combined_loss = batch_emb_loss * loss_multiplier + batch_mask_loss
+                batch_combined_loss = (batch_emb_loss * loss_multiplier + batch_mask_loss) / num_examples_in_batch
 
                 batch_correct = 0
                 batch_total = 0
@@ -139,13 +150,22 @@ class ExperimentRunner:
                     batch_correct += int(sum(torch.isclose(torch.round(batch_pred_masks[idx][:length]), batch_Y_masks[idx][:length])))
                     batch_positive += int(sum(batch_Y_masks[idx][:length]))
 
+                epoch_correct += batch_correct
+                epoch_total += batch_total
+
                 mask_accuracy = batch_correct / batch_total
+                epoch_mask_accuracy = epoch_correct / epoch_total
 
                 batch_combined_loss.backward()
                 optimizer.step()
 
-                print("%04d-%04d: embedding loss: %f, mask loss: %f, mask accuracy: %f (%f positive examples in batch)" %
-                    (epoch, i, batch_emb_loss / batch_emb_variance, batch_mask_loss / batch_mask_variance, mask_accuracy, batch_positive / batch_total))
+                if print_batch_stats:
+                    print("%04d-%04d (batch): norm. embedding loss: %f (absolute: %f), norm. mask loss: %f (absolute: %f), mask accuracy: %f" %
+                        (epoch, i, batch_emb_loss / batch_emb_variance, batch_emb_loss,
+                            batch_mask_loss / batch_mask_variance, batch_mask_loss, mask_accuracy))
+                print("%04d-%04d (epoch): norm. embedding loss: %f (absolute: %f), norm. mask loss: %f (absolute: %f), mask accuracy: %f" %
+                    (epoch, i, epoch_emb_loss / epoch_emb_variance, epoch_emb_loss,
+                        epoch_mask_loss / epoch_mask_variance, epoch_mask_loss, epoch_mask_accuracy))
 
     def embed(self,
               sentences=None,
