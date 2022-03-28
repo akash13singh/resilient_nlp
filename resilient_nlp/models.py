@@ -8,6 +8,11 @@ class BaseEmbeddingModel(nn.Module):
         super(BaseEmbeddingModel, self).__init__()
         self.num_tokens = num_tokens
 
+    def _copy_params(self, actual_locals):
+        self.params = {
+            k: v for k, v in actual_locals.items() if k not in ['self', '__class__' ]
+        }
+
     def forward(self, X, lengths):
         raise NotImplementedError
 
@@ -66,6 +71,7 @@ class LSTMModel(BaseEmbeddingModel):
                  num_tokens,
                  hidden_size,
                  num_layers):
+        self._copy_params(locals())
         super(LSTMModel, self).__init__(num_tokens)
         self.word_emb_size = word_emb_size
         self.char_emb_size = char_emb_size
@@ -102,6 +108,7 @@ class CNNModel(BaseEmbeddingModel):
                  hidden_size,
                  kernel_size,
                  num_layers):
+        self._copy_params(locals())
         super(CNNModel, self).__init__(num_tokens)
         self.word_emb_size = word_emb_size
         self.char_emb_size = char_emb_size

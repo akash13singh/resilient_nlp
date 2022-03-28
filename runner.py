@@ -29,23 +29,38 @@ CNN_KERNEL_SIZE = 11
 # FIXME - this is hardcoded for bert-base
 WORD_EMB_SIZE = 768
 
-
 class ExperimentRunner:
-    def __init__(self, device, model_name='bert-base-cased', tokenizer_name=None):
+    def __init__(self,
+                 device,
+                 model_filename=None,
+                 model_class=None,
+                 model_params=None,
+                 objective_model_name='bert-base-uncased',
+                 objective_tokenizer_name=None):
         self.device = device
-        self.model = LSTMModel(word_emb_size=WORD_EMB_SIZE,
-            char_emb_size=CHAR_EMB_SIZE, num_tokens=NUM_TOKENS,
-            hidden_size=HIDDEN_SIZE, num_layers=NUM_LAYERS).to(device)
-        #self.model = CNNModel(word_emb_size=WORD_EMB_SIZE,
-        #    char_emb_size=CHAR_EMB_SIZE, num_tokens=NUM_TOKENS,
-        #    hidden_size=HIDDEN_SIZE, num_layers=NUM_LAYERS,
-        #    kernel_size=CNN_KERNEL_SIZE).to(device)
+
+        char_vocab = [ '<unk>', '<s>', '</s>' ]
+
+        if model_filename is not None:
+            save_state = torch.load(model_filename, map_location='cpu')
+            model_state_dict = save_state['model_state_dict']
+            model_class = save_state['model_class']
+            model_params = save_state['model_params']
+            char_vocab = save_state['char_vocab']
+
+        cls = globals()[model_class]
+        self.model = cls(**model_params)
+        self.model_class = model_class
+
+        if model_filename is not None:
+            self.model.load_state_dict(model_state_dict)
+
         self.char_tokenizer = CharTokenizer(
-            max_vocab=NUM_TOKENS, initial_vocab = [ '<unk>', '<s>', '</s>' ],
+            max_vocab=NUM_TOKENS, initial_vocab=char_vocab,
             start_index=1, end_index=2)
         self.embedder = BertEmbedder(
-            model_name=model_name,
-            tokenizer_name=tokenizer_name,
+            model_name=objective_model_name,
+            tokenizer_name=objective_tokenizer_name,
             per_character_embedding=True,
             add_special_tokens=False,
             start_char_present=True,
@@ -224,14 +239,42 @@ class ExperimentRunner:
     def sanitize(self, sentences):
         return self.inverse_embed(self.embed(sentences))[0]
 
+
+    def save(self, path):
+        save_state = {}
+        save_state['model_state_dict'] = self.model.state_dict()
+        save_state['model_class'] = self.model_class
+        save_state['model_params'] = self.model.params
+        save_state['char_vocab'] = self.char_tokenizer.vocab
+        torch.save(save_state, path)
+
+
+DEFAULT_LSTM_PARAMS = {
+    'word_emb_size': WORD_EMB_SIZE,
+    'char_emb_size': CHAR_EMB_SIZE,
+    'num_tokens': NUM_TOKENS,
+    'hidden_size': HIDDEN_SIZE,
+    'num_layers': NUM_LAYERS,
+}
+
+DEFAULT_CNN_PARAMS = {
+    'word_emb_size': WORD_EMB_SIZE,
+    'char_emb_size': CHAR_EMB_SIZE,
+    'num_tokens': NUM_TOKENS,
+    'hidden_size': HIDDEN_SIZE,
+    'num_layers': NUM_LAYERS,
+    'kernel_size': CNN_KERNEL_SIZE,
+}
+
 if __name__ == '__main__':
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
-    runner = ExperimentRunner(device, model_name='artemis13fowl/bert-base-uncased-imdb',
-        tokenizer_name='bert-base-uncased')
+    runner = ExperimentRunner(device,
+        objective_model_name='artemis13fowl/bert-base-uncased-imdb',
+        objective_tokenizer_name='bert-base-uncased',
+        model_class='LSTMModel',
+        model_params=DEFAULT_LSTM_PARAMS)
     runner.train(NUM_SENTENCES)
-    #runner.model.load("model6.pth", device)
-    #runner.char_tokenizer.load_vocab("model6_vocab.json")
 
     test_sentences = [
       "my hovercraft is full of eels!",
