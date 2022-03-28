@@ -36,7 +36,9 @@ class ExperimentRunner:
                  device,
                  model_filename=None,
                  model_class=None,
-                 model_params=None,
+                 model_params={},
+                 perturber_class=None,
+                 perturber_params={},
                  objective_model_name='bert-base-uncased',
                  objective_tokenizer_name=None):
         self.device = device
@@ -57,6 +59,12 @@ class ExperimentRunner:
         if model_filename is not None:
             self.model.load_state_dict(model_state_dict)
 
+        if perturber_class is None:
+            self.perturber = NullPerturber()
+        else:
+            cls = globals()[perturber_class]
+            self.perturber = cls(**perturber_params)
+
         self.char_tokenizer = CharTokenizer(
             max_vocab=model_params['num_tokens'], initial_vocab=char_vocab,
             start_index=1, end_index=2)
@@ -75,9 +83,6 @@ class ExperimentRunner:
               print_batch_stats=False,
               lr=0.001):
         corpus = BookCorpus()
-        # perturber = NullPerturber()
-        # perturber = ToyPerturber(start_char_present=True, end_char_present=True)
-        perturber = WordScramblerPerturber(start_char_present=True, end_char_present=True)
 
         # Ensure consistent sample
         random.seed(11)
@@ -126,7 +131,7 @@ class ExperimentRunner:
                 batch_Y = bert_embeddings['embeddings']
                 batch_Y_masks = bert_embeddings['masks']
 
-                perturbed_sentences, batch_Y_masks, batch_Y = perturber.perturb(
+                perturbed_sentences, batch_Y_masks, batch_Y = self.perturber.perturb(
                     sentences[bs:be],
                     batch_Y_masks,
                     batch_Y)
@@ -320,6 +325,11 @@ DEFAULT_CNN_PARAMS = {
     'kernel_size': CNN_KERNEL_SIZE,
 }
 
+DEFAULT_WSP_PARAMS = {
+    'start_char_present': True,
+    'end_char_present': True,
+}
+
 if __name__ == '__main__':
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
@@ -327,7 +337,9 @@ if __name__ == '__main__':
         objective_model_name='artemis13fowl/bert-base-uncased-imdb',
         objective_tokenizer_name='bert-base-uncased',
         model_class='LSTMModel',
-        model_params=DEFAULT_LSTM_PARAMS)
+        model_params=DEFAULT_LSTM_PARAMS,
+        perturber_class='WordScramblerPerturber',
+        perturber_params=DEFAULT_WSP_PARAMS)
     runner.train(NUM_EPOCHS, NUM_SENTENCES, num_eval_sentences=NUM_EVAL_SENTENCES, lr=0.001)
 
     test_sentences = [
