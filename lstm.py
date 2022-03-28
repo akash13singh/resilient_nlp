@@ -11,7 +11,7 @@ import sys
 from resilient_nlp.char_tokenizer import CharTokenizer
 from resilient_nlp.corpora import BookCorpus
 from resilient_nlp.embedders import BertEmbedder
-from resilient_nlp.models import LSTMModel
+from resilient_nlp.models import LSTMModel, CNNModel
 from resilient_nlp.perturbers import NullPerturber, ToyPerturber, \
                                      WordScramblerPerturber
 
@@ -23,7 +23,8 @@ NUM_TOKENS = 1000
 NUM_SENTENCES = 64000
 CHAR_EMB_SIZE = 768
 HIDDEN_SIZE = 768
-NUM_LSTM_LAYERS = 3
+NUM_LAYERS = 3
+CNN_KERNEL_SIZE = 11
 
 # FIXME - this is hardcoded for bert-base
 WORD_EMB_SIZE = 768
@@ -34,7 +35,11 @@ class ExperimentRunner:
         self.device = device
         self.model = LSTMModel(word_emb_size=WORD_EMB_SIZE,
             char_emb_size=CHAR_EMB_SIZE, num_tokens=NUM_TOKENS,
-            hidden_size=HIDDEN_SIZE, num_layers=NUM_LSTM_LAYERS).to(device)
+            hidden_size=HIDDEN_SIZE, num_layers=NUM_LAYERS).to(device)
+        #self.model = CNNModel(word_emb_size=WORD_EMB_SIZE,
+        #    char_emb_size=CHAR_EMB_SIZE, num_tokens=NUM_TOKENS,
+        #    hidden_size=HIDDEN_SIZE, num_layers=NUM_LAYERS,
+        #    kernel_size=CNN_KERNEL_SIZE).to(device)
         self.char_tokenizer = CharTokenizer(
             max_vocab=NUM_TOKENS, initial_vocab = [ '<unk>', '<s>', '</s>' ],
             start_index=1, end_index=2)
@@ -222,8 +227,11 @@ class ExperimentRunner:
 if __name__ == '__main__':
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
-    runner = ExperimentRunner(device)
+    runner = ExperimentRunner(device, model_name='artemis13fowl/bert-base-uncased-imdb',
+        tokenizer_name='bert-base-uncased')
     runner.train(NUM_SENTENCES)
+    #runner.model.load("model6.pth", device)
+    #runner.char_tokenizer.load_vocab("model6_vocab.json")
 
     test_sentences = [
       "my hovercraft is full of eels!",
@@ -239,4 +247,3 @@ if __name__ == '__main__':
     for i, item in enumerate(sanitized):
         print("Original sentence: {}".format(test_sentences[i]))
         print("Reconstructed    : {}".format(item))
-
