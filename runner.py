@@ -1,3 +1,4 @@
+import itertools
 import json
 import math
 import os
@@ -21,6 +22,7 @@ BATCH_SIZE = 64
 # NOTE: This is the character vocab size
 NUM_TOKENS = 1000
 NUM_SENTENCES = 64000
+NUM_EVAL_SENTENCES = 1280
 CHAR_EMB_SIZE = 768
 HIDDEN_SIZE = 768
 NUM_LAYERS = 3
@@ -66,7 +68,7 @@ class ExperimentRunner:
             start_char_present=True,
             end_char_present=True)
 
-    def train(self, num_sentences, num_eval_sentences=0, print_batch_stats=False):
+    def train(self, num_train_sentences, num_eval_sentences=0, print_batch_stats=False):
         corpus = BookCorpus()
         # perturber = NullPerturber()
         # perturber = ToyPerturber(start_char_present=True, end_char_present=True)
@@ -74,22 +76,41 @@ class ExperimentRunner:
 
         # Ensure consistent sample
         random.seed(11)
-        all_sentences = corpus.sample_items(num_sentences + num_eval_sentences)
-        sentences = all_sentences[:num_sentences]
-        eval_sentences = all_sentences[num_sentences:]
+        all_sentences = corpus.sample_items(num_train_sentences + num_eval_sentences)
+        train_sentences = all_sentences[:num_train_sentences]
+        eval_sentences = all_sentences[num_train_sentences:]
 
         loss = nn.MSELoss()
         optimizer = optim.Adam(self.model.parameters(), lr=0.001)
 
-        num_batches = math.ceil(num_sentences / BATCH_SIZE)
+        num_train_batches = math.ceil(num_train_sentences / BATCH_SIZE)
+        num_eval_batches = math.ceil(num_eval_sentences / BATCH_SIZE)
 
-        for epoch in range(NUM_EPOCHS):
+        for epoch, mode in itertools.product(range(NUM_EPOCHS), ('train', 'eval')):
+            # NOTE: When evaluating we want to use a consistent set of
+            #       perturbed sentences. Since we're perturbing within
+            #       the evaluation loop, we want to ensure the random
+            #       number generator has the same seed. However we want
+            #       training to potentially use a different seed for
+            #       every epoch, so we're persisting the random state.
+            if mode == 'eval':
+                old_random_state = random.getstate()
+                random.seed(12)
+
             epoch_correct = 0
             epoch_total = 0
             epoch_emb_loss = 0.0
             epoch_emb_variance = 0.0
             epoch_mask_loss = 0.0
             epoch_mask_variance = 0.0
+            if mode == 'train':
+                num_batches = num_train_batches
+                sentences = train_sentences
+            else:
+                num_batches = num_eval_batches
+                sentences = eval_sentences
+            num_sentences = len(sentences)
+
             for i in range(num_batches):
                 bs = i * BATCH_SIZE
                 be = bs + BATCH_SIZE
@@ -121,8 +142,11 @@ class ExperimentRunner:
                 batch_Y = batch_Y.to(device)
                 batch_Y_masks = batch_Y_masks.to(self.device)
 
-                self.model.zero_grad()
-                self.model.train()
+                if mode == 'train':
+                    self.model.zero_grad()
+                    self.model.train()
+                else:
+                    self.model.eval()
 
                 batch_preds, batch_pred_masks = self.model(batch_X, batch_lengths)
                 batch_emb_loss = num_examples_in_batch * \
@@ -156,16 +180,21 @@ class ExperimentRunner:
                 mask_accuracy = batch_correct / batch_total
                 epoch_mask_accuracy = epoch_correct / epoch_total
 
-                batch_combined_loss.backward()
-                optimizer.step()
+                if mode == 'train':
+                    batch_combined_loss.backward()
+                    optimizer.step()
 
                 if print_batch_stats:
-                    print("%04d-%04d (batch): norm. embedding loss: %f (absolute: %f), norm. mask loss: %f (absolute: %f), mask accuracy: %f" %
-                        (epoch, i, batch_emb_loss / batch_emb_variance, batch_emb_loss,
+                    print("%5s: %05d-%05d (batch): norm. embedding loss: %f (absolute: %f), norm. mask loss: %f (absolute: %f), mask accuracy: %f" %
+                        (mode, epoch, i, batch_emb_loss / batch_emb_variance, batch_emb_loss,
                             batch_mask_loss / batch_mask_variance, batch_mask_loss, mask_accuracy))
-                print("%04d-%04d (epoch): norm. embedding loss: %f (absolute: %f), norm. mask loss: %f (absolute: %f), mask accuracy: %f" %
-                    (epoch, i, epoch_emb_loss / epoch_emb_variance, epoch_emb_loss,
+                print("%5s: %05d-%05d (epoch): norm. embedding loss: %f (absolute: %f), norm. mask loss: %f (absolute: %f), mask accuracy: %f" %
+                    (mode, epoch, i, epoch_emb_loss / epoch_emb_variance, epoch_emb_loss,
                         epoch_mask_loss / epoch_mask_variance, epoch_mask_loss, epoch_mask_accuracy))
+
+
+            if mode == 'eval':
+                random.setstate(old_random_state)
 
     def embed(self,
               sentences=None,
@@ -294,7 +323,7 @@ if __name__ == '__main__':
         objective_tokenizer_name='bert-base-uncased',
         model_class='LSTMModel',
         model_params=DEFAULT_LSTM_PARAMS)
-    runner.train(NUM_SENTENCES)
+    runner.train(NUM_SENTENCES, num_eval_sentences=NUM_EVAL_SENTENCES)
 
     test_sentences = [
       "my hovercraft is full of eels!",
