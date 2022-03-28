@@ -49,7 +49,7 @@ class ExperimentRunner:
             char_vocab = save_state['char_vocab']
 
         cls = globals()[model_class]
-        self.model = cls(**model_params)
+        self.model = cls(**model_params).to(device)
         self.model_class = model_class
 
         if model_filename is not None:
