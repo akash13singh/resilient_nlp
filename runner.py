@@ -58,7 +58,7 @@ class ExperimentRunner:
             self.model.load_state_dict(model_state_dict)
 
         self.char_tokenizer = CharTokenizer(
-            max_vocab=NUM_TOKENS, initial_vocab=char_vocab,
+            max_vocab=model_params['num_tokens'], initial_vocab=char_vocab,
             start_index=1, end_index=2)
         self.embedder = BertEmbedder(
             model_name=objective_model_name,
@@ -68,7 +68,12 @@ class ExperimentRunner:
             start_char_present=True,
             end_char_present=True)
 
-    def train(self, num_train_sentences, num_eval_sentences=0, print_batch_stats=False):
+    def train(self,
+              num_epochs,
+              num_train_sentences,
+              num_eval_sentences=0,
+              print_batch_stats=False,
+              lr=0.001):
         corpus = BookCorpus()
         # perturber = NullPerturber()
         # perturber = ToyPerturber(start_char_present=True, end_char_present=True)
@@ -81,12 +86,12 @@ class ExperimentRunner:
         eval_sentences = all_sentences[num_train_sentences:]
 
         loss = nn.MSELoss()
-        optimizer = optim.Adam(self.model.parameters(), lr=0.001)
+        optimizer = optim.Adam(self.model.parameters(), lr=lr)
 
         num_train_batches = math.ceil(num_train_sentences / BATCH_SIZE)
         num_eval_batches = math.ceil(num_eval_sentences / BATCH_SIZE)
 
-        for epoch, mode in itertools.product(range(NUM_EPOCHS), ('train', 'eval')):
+        for epoch, mode in itertools.product(range(num_epochs), ('train', 'eval')):
             # NOTE: When evaluating we want to use a consistent set of
             #       perturbed sentences. Since we're perturbing within
             #       the evaluation loop, we want to ensure the random
@@ -323,7 +328,7 @@ if __name__ == '__main__':
         objective_tokenizer_name='bert-base-uncased',
         model_class='LSTMModel',
         model_params=DEFAULT_LSTM_PARAMS)
-    runner.train(NUM_SENTENCES, num_eval_sentences=NUM_EVAL_SENTENCES)
+    runner.train(NUM_EPOCHS, NUM_SENTENCES, num_eval_sentences=NUM_EVAL_SENTENCES, lr=0.001)
 
     test_sentences = [
       "my hovercraft is full of eels!",
