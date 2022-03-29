@@ -149,7 +149,7 @@ class ExperimentRunner:
 
                 batch_X = batch_X.to(self.device)
 
-                batch_Y = batch_Y.to(device)
+                batch_Y = batch_Y.to(self.device)
                 batch_Y_masks = batch_Y_masks.to(self.device)
 
                 if mode == 'train':
