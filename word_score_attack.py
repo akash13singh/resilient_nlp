@@ -31,11 +31,14 @@ class BertWordScoreAttack:
                               return_tensors='pt')
 
     def get_bert_output(self, text):
-        tokenized = self.bert_tokenize(text)
-        output = self.model(**tokenized)
+        if self.tokenizer is not None:
+            tokenized = self.bert_tokenize([text])
+            output = self.model(**tokenized)
+        else:
+            output = self.model([text])
         logits = output['logits']
         pred = torch.argmax(logits, dim=1).item()
-        smax = torch.nn.Softmax()
+        smax = torch.nn.Softmax(dim=1)
         probs = smax(logits)
         return pred, np.round(probs[0][pred].item(), 4)
 
@@ -56,7 +59,8 @@ class BertWordScoreAttack:
         attack_stats['attack_accuracy'] = (attack_stats['failed_attacks']) * 100.0 / (attack_stats['total_attacks'])
         return attack_stats
 
-    def attack(self, dataset, max_tokens_to_query=-1, max_tries_per_token=1, mode=0, attack_results_csv=None, logging=False):
+    def attack(self, dataset, max_tokens_to_query=-1, max_tries_per_token=1, mode=0, attack_results_csv=None, logging=False,
+               print_summary=True):
         """
         mode 0: Perserve best unsuccessful perturbation per token. Final attack can perturb utpo max_tokens_to_query tokens.
         mode 1: Forgets unccessful perturbations. Final Attacks perturbs only 1 token per sample.
@@ -71,12 +75,13 @@ class BertWordScoreAttack:
         orig_tokens = np.empty(n_samples, dtype='object')
         perturbed_tokens = np.empty(n_samples, dtype='object')
         n_queries = np.empty(n_samples, dtype='object')
+        perturbed_preds = np.zeros(n_samples)
 
         for sample_idx, (orig_text, ground_truth) in tqdm(enumerate(zip(orig_texts, actuals))):
             #print(f"------------- Sample: {sample_idx} ---------------------------------")
             # print(orig_text)
             orig_pred, orig_score = self.get_bert_output(orig_text)
-            orig_preds[sample_idx] = orig_pred
+            orig_preds[sample_idx] = perturbed_preds[sample_idx] = orig_pred
 
             if ground_truth != orig_pred:  # Model has an error. skip_attack
                 # print(f'Sample {sample_idx}. Attack Skipped')
@@ -134,6 +139,7 @@ class BertWordScoreAttack:
                         perturbed_texts[sample_idx] = perturbed_text
                         orig_tokens[sample_idx] = attack_token
                         perturbed_tokens[sample_idx] = perturbed_token
+                        perturbed_preds[sample_idx] = perturbed_pred
                         break
 
                         # track best attack (worse_score/worse_text) so far.
@@ -151,9 +157,10 @@ class BertWordScoreAttack:
                 # print(f'Sample {sample_idx}. Max tries exhausted')
                 attack_status[sample_idx] = 'Failed'
 
-        print(classification_report(actuals, orig_preds))
         status_counts = Counter(attack_status)
-        print(status_counts)
+        if print_summary:
+            print(classification_report(actuals, orig_preds))
+            print(status_counts)
 
         results = {'attack_status': attack_status,
                    'ground_truth': actuals,
@@ -163,6 +170,7 @@ class BertWordScoreAttack:
                    'num_queries': n_queries,
                    'original_text': orig_texts,
                    'perturbed_text': perturbed_texts,
+                   'perturbed_preds': perturbed_preds,
                    }
 
         self.results = pd.DataFrame.from_dict(results)
@@ -172,24 +180,25 @@ class BertWordScoreAttack:
 
         success_rate = np.round(100 * status_counts['Successful'] / (status_counts['Successful'] + status_counts['Failed']),
                                 2)
-        print(f'Success Rate {success_rate}')
-        print(f'Avg Queries: {self.results.num_queries.mean()}')
+        if print_summary:
+            print(f'Success Rate {success_rate}')
+            print(f'Avg Queries: {self.results.num_queries.mean()}')
         return self.results
 
-
-checkpoint_finetuned = "artemis13fowl/bert-base-uncased-imdb"
-model = BertForSequenceClassification.from_pretrained(checkpoint_finetuned)
-tokenizer_checkpoint = "bert-base-uncased"
-tokenizer = AutoTokenizer.from_pretrained(tokenizer_checkpoint)
-word_scores_file = "output/imdb_word_scores.json"
-max_sequence_length = 128
-batch_size = 32
-eval_steps = 100
-wsp = WordScramblerPerturber(perturb_prob=1, weight_add=1, weight_drop=1, weight_swap=1,
+if __name__ == '__main__':
+    checkpoint_finetuned = "artemis13fowl/bert-base-uncased-imdb"
+    model = BertForSequenceClassification.from_pretrained(checkpoint_finetuned)
+    tokenizer_checkpoint = "bert-base-uncased"
+    tokenizer = AutoTokenizer.from_pretrained(tokenizer_checkpoint)
+    word_scores_file = "output/imdb_word_scores.json"
+    max_sequence_length = 128
+    batch_size = 32
+    eval_steps = 100
+    wsp = WordScramblerPerturber(perturb_prob=1, weight_add=1, weight_drop=1, weight_swap=1,
                                                 weight_split_word=1,weight_merge_words=1)
-dataset = load_dataset("artemis13fowl/imdb", split="attack_eval_truncated")
+    dataset = load_dataset("artemis13fowl/imdb", split="attack_eval_truncated")
 
-# attack!!
-attacker = BertWordScoreAttack(wsp, word_scores_file, model, tokenizer,  max_sequence_length)
-results = attacker.attack(dataset[:10], max_tokens_to_query=20, max_tries_per_token=3, mode=0, attack_results_csv="output/test_word_attack.csv", logging=True)
-attacker.compute_attack_stats()
+    # attack!!
+    attacker = BertWordScoreAttack(wsp, word_scores_file, model, tokenizer,  max_sequence_length)
+    results = attacker.attack(dataset[:10], max_tokens_to_query=20, max_tries_per_token=3, mode=0, attack_results_csv="output/test_word_attack.csv", logging=True)
+    attacker.compute_attack_stats()
