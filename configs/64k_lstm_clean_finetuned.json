@@ -1,0 +1,18 @@
+{
+  "num_epochs": 5,
+  "num_train_sentences": 64000,
+  "num_eval_sentences": 1280,
+  "lr": 0.001,
+  "objective_model_name": "artemis13fowl/bert-base-uncased-imdb",
+  "objective_tokenizer_name": "bert-base-uncased",
+  "model_class": "LSTMModel",
+  "model_params": {
+    "word_emb_size": 768,
+    "char_emb_size": 768,
+    "num_tokens": 1000,
+    "hidden_size": 768,
+    "num_layers": 3
+  },
+  "perturber_class": "NullPerturber",
+  "perturber_params": {}
+}
