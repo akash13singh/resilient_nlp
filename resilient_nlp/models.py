@@ -34,7 +34,7 @@ class BaseEmbeddingModel(nn.Module):
             token_nums = torch.clamp(token_nums, max=max_tokens)
 
         result = torch.zeros((dense_result.shape[0], max_tokens, dense_result.shape[2]),
-            dtype=torch.float)
+            dtype=torch.float, device=dense_result.device)
 
         for i in range(dense_result.shape[0]):
             token_idx = 0

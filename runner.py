@@ -244,7 +244,8 @@ class ExperimentRunner:
             emb_lengths += batch_emb_lengths.tolist()
 
         max_emb_length = max(emb_lengths)
-        embeddings = torch.zeros((len(sentence_tokens), max_emb_length, WORD_EMB_SIZE), dtype=torch.float)
+        embeddings = torch.zeros((len(sentence_tokens), max_emb_length, WORD_EMB_SIZE),
+            dtype=torch.float, device=self.device)
 
         for i in range(num_batches):
             bs = i * BATCH_SIZE
@@ -259,7 +260,7 @@ class ExperimentRunner:
                 [1] * length + [0] * (max_emb_length - length)
                 for length in emb_lengths
             ]
-        )
+        ).to(self.device)
 
         return {
             'inputs_embeds': embeddings,
