@@ -279,7 +279,7 @@ class ExperimentRunner:
         # res_token_list = torch.argmax(res, dim=2).cpu().tolist()
 
         # euclidean distance
-        embedding_weights = bert_embedding.weight.data
+        embedding_weights = bert_embedding.weight.data.to(self.device)
         expanded_weights = embedding_weights.view(
             1, embedding_weights.shape[0], embedding_weights.shape[1])
         expanded_weights = expanded_weights.expand(
