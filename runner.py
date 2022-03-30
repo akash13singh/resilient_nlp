@@ -206,6 +206,7 @@ class ExperimentRunner:
             if mode == 'eval':
                 random.setstate(old_random_state)
 
+    @torch.no_grad()
     def embed(self,
               sentences=None,
               sentence_tokens=None,
