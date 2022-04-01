@@ -11,6 +11,7 @@ from sklearn.metrics import classification_report
 import torch
 from tqdm import tqdm
 import json
+import datetime
 
 
 class BertWordScoreAttack:
@@ -119,6 +120,7 @@ class BertWordScoreAttack:
 
                 for n_try in range(max_tries_per_token):
                     perturbed_token = self.perturber.perturb([attack_token])[0][0]
+                    #TODO what if attack/perturbed token is part of another bigger token
                     perturbed_text = text.replace(attack_token, perturbed_token, 1)
                     perturbed_pred, perturbed_score = self.get_bert_output(perturbed_text)
 
@@ -192,13 +194,32 @@ if __name__ == '__main__':
     tokenizer = AutoTokenizer.from_pretrained(tokenizer_checkpoint)
     word_scores_file = "output/imdb_word_scores.json"
     max_sequence_length = 128
-    batch_size = 32
-    eval_steps = 100
+
     wsp = WordScramblerPerturber(perturb_prob=1, weight_add=1, weight_drop=1, weight_swap=1,
                                                 weight_split_word=1,weight_merge_words=1)
     dataset = load_dataset("artemis13fowl/imdb", split="attack_eval_truncated")
 
-    # attack!!
+    # initialize attacker
     attacker = BertWordScoreAttack(wsp, word_scores_file, model, tokenizer,  max_sequence_length)
-    results = attacker.attack(dataset[:10], max_tokens_to_query=20, max_tries_per_token=3, mode=0, attack_results_csv="output/test_word_attack.csv", logging=True)
-    attacker.compute_attack_stats()
+
+    # set attack parameters
+    max_tokens_to_query = 1
+    max_tries_per_token = 1
+    mode = 0
+    attack_name_string = f'_{max_tokens_to_query}_{max_tries_per_token}_{mode}_{datetime.datetime.now().isoformat(" ", "seconds")}'
+    attack_data_file = f'output/word_score_attack_data_{attack_name_string}.csv'
+    attack_results_file = f'output/word_score_attack_results_{attack_name_string}.json'
+
+    #attack!
+    attack_results = attacker.attack(dataset[:1],
+                                  max_tokens_to_query=max_tokens_to_query,
+                                  max_tries_per_token=max_tries_per_token,
+                                  mode=mode,
+                                  attack_results_csv=attack_data_file,
+                                  logging=True)
+    #
+    attack_stats = attacker.compute_attack_stats()
+    print(attack_stats)
+    with open(attack_results_file, 'w') as f:
+        json.dump(attack_stats, fp=f)
+
