@@ -199,24 +199,31 @@ if __name__ == '__main__':
                                                 weight_split_word=1,weight_merge_words=1)
     dataset = load_dataset("artemis13fowl/imdb", split="attack_eval_truncated")
 
-    # initialize attacker
+
+    attack_settings = [
+
+
+    ]
+
+
     attacker = BertWordScoreAttack(wsp, word_scores_file, model, tokenizer,  max_sequence_length)
 
     # set attack parameters
-    max_tokens_to_query = 1
-    max_tries_per_token = 1
+    max_tokens_to_query = 40
+    max_tries_per_token = 4
     mode = 0
     attack_name_string = f'_{max_tokens_to_query}_{max_tries_per_token}_{mode}_{datetime.datetime.now().isoformat(" ", "seconds")}'
     attack_data_file = f'output/word_score_attack_data_{attack_name_string}.csv'
     attack_results_file = f'output/word_score_attack_results_{attack_name_string}.json'
 
     #attack!
-    attack_results = attacker.attack(dataset[:1],
+    attack_results = attacker.attack(dataset,
                                   max_tokens_to_query=max_tokens_to_query,
                                   max_tries_per_token=max_tries_per_token,
                                   mode=mode,
                                   attack_results_csv=attack_data_file,
-                                  logging=True)
+                                  logging=False,
+                                  print_summary=True)
     #
     attack_stats = attacker.compute_attack_stats()
     print(attack_stats)
