@@ -1,0 +1,1 @@
+{"total_attacks": 500, "avg_n_queries": 37.04, "successful_attacks": 50, "failed_attacks": 359, "skipped_attacks": 91, "attack_success_rate": 12.0, "orig_accuracy": 81.8, "attack_accuracy": 71.8}
