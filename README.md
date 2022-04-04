@@ -14,7 +14,17 @@ The IMDb dataset split used for finetuning is available here: https://huggingfac
 
 ## MockingBERT models
 
-The trained MockingBERT models can be found here: https://github.com/jjezabek/resilient-nlp-models
+The trained MockingBERT models can be found here:
+```
+https://resilient-nlp.s3.us-west-2.amazonaws.com/64k_cnn_no_whitespace_pert_finetuned.pth
+https://resilient-nlp.s3.us-west-2.amazonaws.com/64k_lstm_all_pert_finetuned.pth
+https://resilient-nlp.s3.us-west-2.amazonaws.com/64k_lstm_all_pert_vanilla.pth
+https://resilient-nlp.s3.us-west-2.amazonaws.com/64k_lstm_clean_finetuned.pth
+https://resilient-nlp.s3.us-west-2.amazonaws.com/64k_lstm_clean_vanilla.pth
+https://resilient-nlp.s3.us-west-2.amazonaws.com/64k_lstm_no_whitespace_pert_finetuned.pth
+https://resilient-nlp.s3.us-west-2.amazonaws.com/64k_lstm_no_whitespace_pert_vanilla.pth
+```
+
 For evaluation, they need to be placed in the 'output' directory of the 'resilient_nlp' repository.
 To re-train, execute 'train_all_configs.sh' (this can take a few hours on a GPU machine).
 
@@ -25,6 +35,8 @@ To run the evaluation, you will need first download the files used by RobEn: 'vo
 The direct links are:
 https://worksheets.codalab.org/rest/bundles/0xd5f5ee6dcd314e6d82b828c2b318f71e/contents/blob/clusterers/vocab100000_ed1.pkl
 https://worksheets.codalab.org/rest/bundles/0x6ba29d12a7f9450283b6584f818cd9ee/contents/blob/clusterers/vocab100000_ed1_gamma0.3.pkl
+
+These files need to be placed in the root directory of the repository.
 
 ## Evaluation
 
