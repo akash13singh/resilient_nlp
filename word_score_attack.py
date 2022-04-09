@@ -60,7 +60,7 @@ class BertWordScoreAttack:
         attack_stats['attack_accuracy'] = (attack_stats['failed_attacks']) * 100.0 / (attack_stats['total_attacks'])
         return attack_stats
 
-    def attack(self, dataset, max_tokens_to_query=-1, max_tries_per_token=1, mode=0, attack_results_csv=None, logging=False,
+    def attack(self, dataset,max_tokens_to_perturb=-1, max_tries_per_token=1, mode=0, attack_results_csv=None, logging=False,
                print_summary=True):
         """
         mode 0: Perserve best unsuccessful perturbation per token. Final attack can perturb utpo max_tokens_to_query tokens.
@@ -93,15 +93,15 @@ class BertWordScoreAttack:
             tokens = preprocess(orig_text)
             token_scores = {token: self.word_scores[token] if token in self.word_scores else 0 for token in tokens}
 
-            if max_tokens_to_query == -1:
-                max_tokens_to_query = len(token_scores)
+            if max_tokens_to_perturb == -1:
+                max_tokens_to_perturb = len(token_scores)
             else:
-                max_tokens_to_query = min(max_tokens_to_query, len(token_scores))
+                max_tokens_to_perturb = min(max_tokens_to_perturb, len(token_scores))
 
             if orig_pred == 0:  # fetch -ve sentiment tokens
-                attack_tokens = sorted(token_scores.items(), key=lambda item: item[1])[:max_tokens_to_query]
+                attack_tokens = sorted(token_scores.items(), key=lambda item: item[1])[:max_tokens_to_perturb]
             else:  # fetch +ve sentiment tokens
-                attack_tokens = sorted(token_scores.items(), key=lambda item: item[1], reverse=True)[:max_tokens_to_query]
+                attack_tokens = sorted(token_scores.items(), key=lambda item: item[1], reverse=True)[:max_tokens_to_perturb]
 
             attack_passed = False
             token_idx = 0
@@ -110,7 +110,7 @@ class BertWordScoreAttack:
             worst_score = orig_score
             worst_text = orig_text
 
-            while token_idx < max_tokens_to_query and not attack_passed:
+            while token_idx < max_tokens_to_perturb and not attack_passed:
                 # print(f"----- token_idx: {token_idx} --------------")
                 # token_idx = np.random.choice(top_n_tokens)
                 attack_token = attack_tokens[token_idx][0]
@@ -209,16 +209,16 @@ if __name__ == '__main__':
     attacker = BertWordScoreAttack(wsp, word_scores_file, model, tokenizer,  max_sequence_length)
 
     # set attack parameters
-    max_tokens_to_query = 40
+    max_tokens_to_perturb =40
     max_tries_per_token = 4
-    mode = 0
-    attack_name_string = f'_{max_tokens_to_query}_{max_tries_per_token}_{mode}_{datetime.datetime.now().isoformat(" ", "seconds")}'
+    mode = 1
+    attack_name_string = f'_{max_tokens_to_perturb}_{max_tries_per_token}_{mode}_{datetime.datetime.now().isoformat(" ", "seconds")}'
     attack_data_file = f'output/word_score_attack_data_{attack_name_string}.csv'
     attack_results_file = f'output/word_score_attack_results_{attack_name_string}.json'
 
     #attack!
     attack_results = attacker.attack(dataset,
-                                  max_tokens_to_query=max_tokens_to_query,
+                                  max_tokens_to_perturb=max_tokens_to_perturb,
                                   max_tries_per_token=max_tries_per_token,
                                   mode=mode,
                                   attack_results_csv=attack_data_file,
