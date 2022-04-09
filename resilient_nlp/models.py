@@ -123,7 +123,7 @@ class CNNModel(BaseEmbeddingModel):
             in_dim = char_emb_size if i == 0 else hidden_size
             self.cnns.append(
                 nn.Conv1d(in_channels=in_dim, out_channels=hidden_size,
-                          kernel_size=kernel_size, padding='same'))
+                          kernel_size=kernel_size, padding=int((kernel_size - 1) / 2)))
             self.update_gates.append(
                 nn.Linear(hidden_size, hidden_size))
 
