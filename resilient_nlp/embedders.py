@@ -1,5 +1,6 @@
 import torch
-from transformers import BertTokenizerFast, BertModel
+from transformers import BertTokenizerFast, BertModel, \
+                         RobertaTokenizerFast, RobertaModel
 
 class BertEmbedder:
     def __init__(self,
@@ -8,15 +9,21 @@ class BertEmbedder:
                  add_special_tokens=True,
                  per_character_embedding=False,
                  start_char_present=False,
-                 end_char_present=False):
+                 end_char_present=False,
+                 model_type='bert'):
         self.model_name = model_name
         tokenizer_name = tokenizer_name or model_name
         self.tokenizer_name = tokenizer_name
         self.add_special_tokens = add_special_tokens
         self.per_character_embedding = per_character_embedding
-        self.tokenizer = BertTokenizerFast.from_pretrained(tokenizer_name,
-            add_special_tokens=add_special_tokens)
-        self.model = BertModel.from_pretrained(model_name)
+        if model_type == 'bert':
+            self.tokenizer = BertTokenizerFast.from_pretrained(tokenizer_name,
+                add_special_tokens=add_special_tokens)
+            self.model = BertModel.from_pretrained(model_name)
+        elif model_type == 'roberta':
+            self.tokenizer = RobertaTokenizerFast.from_pretrained(tokenizer_name,
+                add_special_tokens=add_special_tokens)
+            self.model = RobertaModel.from_pretrained(model_name)
         self.start_char_present = start_char_present
         self.end_char_present = end_char_present
 

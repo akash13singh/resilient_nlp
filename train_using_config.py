@@ -20,7 +20,8 @@ if __name__ == '__main__':
         model_class=config['model_class'],
         model_params=config['model_params'],
         perturber_class=config['perturber_class'],
-        perturber_params=config['perturber_params'])
+        perturber_params=config['perturber_params'],
+        objective_model_type=config.get('objective_model_type', 'bert'))
     runner.train(config['num_epochs'], config['num_train_sentences'],
                  num_eval_sentences=config['num_eval_sentences'], lr=config['lr'])
 
