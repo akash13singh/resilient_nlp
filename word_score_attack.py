@@ -91,17 +91,14 @@ class BertWordScoreAttack:
 
             orig_text = orig_text.lower()
             tokens = preprocess(orig_text)
-            token_scores = {token: self.word_scores[token] if token in self.word_scores else 0 for token in tokens}
+            token_scores = {token: self.word_scores[ground_truth].get(token, 0) for token in tokens}
 
             if max_tokens_to_perturb == -1:
                 max_tokens_to_perturb = len(token_scores)
             else:
                 max_tokens_to_perturb = min(max_tokens_to_perturb, len(token_scores))
 
-            if orig_pred == 0:  # fetch -ve sentiment tokens
-                attack_tokens = sorted(token_scores.items(), key=lambda item: item[1])[:max_tokens_to_perturb]
-            else:  # fetch +ve sentiment tokens
-                attack_tokens = sorted(token_scores.items(), key=lambda item: item[1], reverse=True)[:max_tokens_to_perturb]
+            attack_tokens = sorted(token_scores.items(), key=lambda item: item[1], reverse=True)[:max_tokens_to_perturb]
 
             attack_passed = False
             token_idx = 0
