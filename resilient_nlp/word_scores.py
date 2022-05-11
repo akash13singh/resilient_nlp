@@ -1,8 +1,11 @@
+import math
 import numpy as np
 from collections import Counter
 from utils import preprocess
 from datasets import load_dataset, load_from_disk
+from nltk.tokenize.treebank import TreebankWordDetokenizer
 import json
+import sys
 
 
 def compute_word_counts(data, splits, num_classes):
@@ -11,7 +14,7 @@ def compute_word_counts(data, splits, num_classes):
             text = text.lower()
             text = preprocess(text)
             for word in text:
-                in_class_counts[label][word]+=1
+                in_class_counts[int(label)][word]+=1
                 for other_label in range(num_classes):
                     if other_label != label:
                         out_of_class_counts[other_label][word]+=1
@@ -45,17 +48,35 @@ def compute_conditional_probs(num_classes):
                 word_scores[label][word] = (word_loglikelihood(word, label))
 
 
-#imdb = load_from_disk("../data/imdb")
-imdb = load_dataset("artemis13fowl/imdb")
-num_classes = 2
+dataset_name = 'imdb'
+if len(sys.argv) >= 2:
+    dataset_name = sys.argv[1]
+
+if dataset_name == 'imdb':
+    dataset = load_dataset("artemis13fowl/imdb")
+    num_classes = 2
+    path = "../output/imdb_word_scores.json"
+    splits = ['train', 'test', 'dev']
+elif dataset_name == 'sst':
+    treebank_detok = TreebankWordDetokenizer()
+
+    dataset = load_dataset('sst').map(
+        lambda row: {
+            "text": treebank_detok.detokenize(row["sentence"].split()),
+            "label": min(math.floor(row["label"] / 0.2), 4.0),
+        }, remove_columns=['sentence', 'tokens', 'tree']
+    )
+    num_classes = 5
+    path = "../output/sst_word_scores.json"
+    splits = ['train', 'test', 'validation']
+
 in_class_counts = [ Counter() for i in range(num_classes) ]
 out_of_class_counts = [ Counter() for i in range(num_classes) ]
 total_counts = Counter()
 word_scores = [ {} for i in range(num_classes) ]
-path = "../output/imdb_word_scores.json"
 
 # compute word counts
-compute_word_counts(imdb, ['train', 'test', 'dev'], num_classes)
+compute_word_counts(dataset, splits, num_classes)
 # compute conditiona probabilities
 compute_conditional_probs(num_classes)
 
