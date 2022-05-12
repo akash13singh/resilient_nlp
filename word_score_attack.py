@@ -33,17 +33,17 @@ class BertWordScoreAttack:
         return self.tokenizer(sent, truncation=True, padding='max_length', max_length=self.max_sequence_length,
                               return_tensors='pt')
 
-    def get_bert_output(self, text):
+    def get_bert_output(self, sentences):
         if self.tokenizer is not None:
-            tokenized = self.bert_tokenize([text])
+            tokenized = self.bert_tokenize(sentences)
             output = self.model(**tokenized)
         else:
-            output = self.model([text])
+            output = self.model(sentences)
         logits = output['logits']
-        pred = torch.argmax(logits, dim=1).item()
+        preds = torch.argmax(logits, dim=1)
         smax = torch.nn.Softmax(dim=1)
         probs = smax(logits)
-        return pred, np.round(probs[0][pred].item(), 4)
+        return preds, torch.round(probs[range(len(sentences)), preds], decimals=4)
 
     def perturb_word(word):
         pass
@@ -102,13 +102,18 @@ class BertWordScoreAttack:
 
             #print(f"------------- Sample: {sample_idx} ---------------------------------")
             # print(orig_text)
-            orig_pred, orig_score = self.get_bert_output(orig_text)
+            query_and_response = [ orig_text, None, None ]
+            yield query_and_response
+            orig_pred = query_and_response[1]
+            orig_score = query_and_response[2]
+            #orig_pred, orig_score = self.get_bert_output(orig_text)
+
             orig_preds[sample_idx] = perturbed_preds[sample_idx] = orig_pred
 
             if ground_truth != orig_pred:  # Model has an error. skip_attack
                 # print(f'Sample {sample_idx}. Attack Skipped')
                 attack_status[sample_idx] = 'Skipped'
-                return
+                yield None
 
             orig_text = orig_text.lower()
             tokens = preprocess(orig_text)
@@ -149,7 +154,11 @@ class BertWordScoreAttack:
                         perturbed_text = self.attempt_word_merge(text, attack_token)
                         perturbed_token = attack_token
                         attempted_word_merge = True
-                    perturbed_pred, perturbed_score = self.get_bert_output(perturbed_text)
+
+                    query_and_response = [ perturbed_text, None, None ]
+                    yield query_and_response
+                    perturbed_pred = query_and_response[1]
+                    perturbed_score = query_and_response[2]
 
                     # print(f"----- n_try: {n_try}----")
                     if logging:
@@ -186,6 +195,8 @@ class BertWordScoreAttack:
                 # print(f'Sample {sample_idx}. Max tries exhausted')
                 attack_status[sample_idx] = 'Failed'
 
+            yield None
+
     def attack(self, dataset,max_tokens_to_perturb=-1, max_tries_per_token=1, mode=0, attack_results_csv=None, logging=False,
                print_summary=True):
         """
@@ -204,10 +215,47 @@ class BertWordScoreAttack:
         n_queries = np.empty(n_samples, dtype='object')
         perturbed_preds = np.zeros(n_samples)
 
-        for sample_idx, (orig_text, ground_truth) in tqdm(enumerate(zip(orig_texts, actuals))):
-            self.attack_single(sample_idx, orig_text, ground_truth, max_tokens_to_perturb, max_tries_per_token,
+        generators = []
+
+        for sample_idx, (orig_text, ground_truth) in enumerate(zip(orig_texts, actuals)):
+            generators.append(self.attack_single(sample_idx, orig_text, ground_truth,
+                max_tokens_to_perturb, max_tries_per_token,
                 mode, logging, orig_preds, attack_status, perturbed_texts,
-                orig_tokens, perturbed_tokens, n_queries, perturbed_preds)
+                orig_tokens, perturbed_tokens, n_queries, perturbed_preds))
+
+        gens_in_batch = 32
+        gens_done = 0
+        cur_gens = []
+
+        progress_bar = tqdm(total=len(generators))
+
+        while len(cur_gens) > 0 or gens_done < len(generators):
+            # Fill in generators
+            while len(cur_gens) < gens_in_batch and gens_done < len(generators):
+                cur_gens.append(generators[gens_done])
+                gens_done += 1
+
+            batch = []
+            new_generators = []
+            for g in cur_gens:
+                query = next(g)
+                if query is not None:
+                    new_generators.append(g)
+                    batch.append(query)
+                else:
+                    progress_bar.update()
+
+            if len(batch) > 0:
+                sentences = [ item[0] for item in batch ]
+                #print(f"submitting sentences:\n{sentences}")
+                preds, scores = self.get_bert_output(sentences)
+                #print(f"obtained preds\n{preds}\nand scores\n{scores}")
+                for i in range(len(sentences)):
+                    batch[i][1] = preds[i]
+                    batch[i][2] = scores[i]
+
+            cur_gens = new_generators
+        progress_bar.close()
 
         status_counts = Counter(attack_status)
         if print_summary:
