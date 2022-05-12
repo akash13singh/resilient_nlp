@@ -96,25 +96,10 @@ class BertWordScoreAttack:
             #print(f"   result:    {result}")
             return result
 
-    def attack(self, dataset,max_tokens_to_perturb=-1, max_tries_per_token=1, mode=0, attack_results_csv=None, logging=False,
-               print_summary=True):
-        """
-        mode 0: Preserve best unsuccessful perturbation per token. Final attack can perturb up to max_tokens_to_query tokens.
-        mode 1: Forgets unccessful perturbations. Final Attacks perturbs only 1 token per sample.
-        """
-        actuals = dataset['label']
-        orig_texts = dataset['text']
-        n_samples = len(actuals)
+    def attack_single(self, sample_idx, orig_text, ground_truth, max_tokens_to_perturb, max_tries_per_token,
+                      mode, logging, orig_preds, attack_status, perturbed_texts,
+                      orig_tokens, perturbed_tokens, n_queries, perturbed_preds):
 
-        orig_preds = np.zeros(n_samples)
-        attack_status = np.empty(n_samples, dtype='object')
-        perturbed_texts = np.empty(n_samples, dtype='object')
-        orig_tokens = np.empty(n_samples, dtype='object')
-        perturbed_tokens = np.empty(n_samples, dtype='object')
-        n_queries = np.empty(n_samples, dtype='object')
-        perturbed_preds = np.zeros(n_samples)
-
-        for sample_idx, (orig_text, ground_truth) in tqdm(enumerate(zip(orig_texts, actuals))):
             #print(f"------------- Sample: {sample_idx} ---------------------------------")
             # print(orig_text)
             orig_pred, orig_score = self.get_bert_output(orig_text)
@@ -123,7 +108,7 @@ class BertWordScoreAttack:
             if ground_truth != orig_pred:  # Model has an error. skip_attack
                 # print(f'Sample {sample_idx}. Attack Skipped')
                 attack_status[sample_idx] = 'Skipped'
-                continue
+                return
 
             orig_text = orig_text.lower()
             tokens = preprocess(orig_text)
@@ -154,6 +139,7 @@ class BertWordScoreAttack:
                     #       we will just handle merging ourselves here
                     if self.attack_whitespace and random.random() < 0.2:
                         perturbed_text = self.attempt_word_merge(text, attack_token)
+                        perturbed_token = attack_token
                         attempted_word_merge = True
                     if perturbed_text == text:
                         perturbed_token = self.perturber.perturb([attack_token])[0][0]
@@ -161,6 +147,7 @@ class BertWordScoreAttack:
                         perturbed_text = text.replace(attack_token, perturbed_token, 1)
                     if self.attack_whitespace and perturbed_text == text and not attempted_word_merge:
                         perturbed_text = self.attempt_word_merge(text, attack_token)
+                        perturbed_token = attack_token
                         attempted_word_merge = True
                     perturbed_pred, perturbed_score = self.get_bert_output(perturbed_text)
 
@@ -198,6 +185,29 @@ class BertWordScoreAttack:
             if attack_passed == False:  # attack failed
                 # print(f'Sample {sample_idx}. Max tries exhausted')
                 attack_status[sample_idx] = 'Failed'
+
+    def attack(self, dataset,max_tokens_to_perturb=-1, max_tries_per_token=1, mode=0, attack_results_csv=None, logging=False,
+               print_summary=True):
+        """
+        mode 0: Preserve best unsuccessful perturbation per token. Final attack can perturb up to max_tokens_to_query tokens.
+        mode 1: Forgets unccessful perturbations. Final Attacks perturbs only 1 token per sample.
+        """
+        actuals = dataset['label']
+        orig_texts = dataset['text']
+        n_samples = len(actuals)
+
+        orig_preds = np.zeros(n_samples)
+        attack_status = np.empty(n_samples, dtype='object')
+        perturbed_texts = np.empty(n_samples, dtype='object')
+        orig_tokens = np.empty(n_samples, dtype='object')
+        perturbed_tokens = np.empty(n_samples, dtype='object')
+        n_queries = np.empty(n_samples, dtype='object')
+        perturbed_preds = np.zeros(n_samples)
+
+        for sample_idx, (orig_text, ground_truth) in tqdm(enumerate(zip(orig_texts, actuals))):
+            self.attack_single(sample_idx, orig_text, ground_truth, max_tokens_to_perturb, max_tries_per_token,
+                mode, logging, orig_preds, attack_status, perturbed_texts,
+                orig_tokens, perturbed_tokens, n_queries, perturbed_preds)
 
         status_counts = Counter(attack_status)
         if print_summary:
