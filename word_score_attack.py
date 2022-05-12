@@ -5,6 +5,7 @@ from datasets import load_dataset
 import pandas as pd
 import numpy as np
 from collections import Counter
+import random
 from resilient_nlp.perturbers import ToyPerturber, WordScramblerPerturber
 from transformers import AutoTokenizer, BertForSequenceClassification
 from sklearn.metrics import classification_report
@@ -15,12 +16,13 @@ import datetime
 
 
 class BertWordScoreAttack:
-    def __init__(self, perturber, word_scores_file, model, tokenizer,  max_sequence_length ):
+    def __init__(self, perturber, word_scores_file, model, tokenizer,  max_sequence_length, attack_whitespace=True):
         self.perturber = perturber
         self.model = model
         self.load_word_scores(word_scores_file)
         self.tokenizer = tokenizer
         self.max_sequence_length = max_sequence_length
+        self.attack_whitespace = attack_whitespace
 
     def load_word_scores(self, path):
         with open(path) as f:
@@ -60,6 +62,40 @@ class BertWordScoreAttack:
         attack_stats['attack_accuracy'] = (attack_stats['failed_attacks']) * 100.0 / (attack_stats['total_attacks'])
         return attack_stats
 
+    def attempt_word_merge(self, text, attack_word):
+        start_from = 0
+
+        #print(f"** Attempting word merge, attacked word: {attack_word}")
+        #print(f"   orig text: {text}")
+
+        while True:
+            pos = text.find(attack_word, start_from)
+            end_pos = pos + len(attack_word)
+            if pos == -1:
+                #print("   merge failed")
+                return text
+            start_from = pos + 1
+
+            possible_actions = []
+
+            if pos >= 2 and text[pos - 1].isspace() and not text[pos - 2].isspace():
+                possible_actions.append('front')
+            if end_pos + 1 < len(text) and text[end_pos].isspace() and not text[end_pos + 1].isspace():
+                possible_actions.append('back')
+
+            if not possible_actions:
+                # This is most likely because the word appeared as a substring
+                continue
+            action = random.choice(possible_actions)
+
+            if action == 'front':
+                result = text[:pos-1] + text[pos:]
+            else:
+                result = text[:end_pos] + text[end_pos+1:]
+
+            #print(f"   result:    {result}")
+            return result
+
     def attack(self, dataset,max_tokens_to_perturb=-1, max_tries_per_token=1, mode=0, attack_results_csv=None, logging=False,
                print_summary=True):
         """
@@ -93,12 +129,7 @@ class BertWordScoreAttack:
             tokens = preprocess(orig_text)
             token_scores = {token: self.word_scores[int(ground_truth)].get(token, 0) for token in tokens}
 
-            if max_tokens_to_perturb == -1:
-                max_tokens_to_perturb_for_sample = len(token_scores)
-            else:
-                max_tokens_to_perturb_for_sample = min(max_tokens_to_perturb, len(token_scores))
-
-            attack_tokens = sorted(token_scores.items(), key=lambda item: item[1], reverse=True)[:max_tokens_to_perturb_for_sample]
+            attack_tokens = sorted(token_scores.items(), key=lambda item: item[1], reverse=True)
 
             attack_passed = False
             token_idx = 0
@@ -107,7 +138,7 @@ class BertWordScoreAttack:
             worst_score = orig_score
             worst_text = orig_text
 
-            while token_idx < max_tokens_to_perturb_for_sample and not attack_passed:
+            while token_idx < len(attack_tokens) and token_idx < max_tokens_to_perturb and not attack_passed:
                 # print(f"----- token_idx: {token_idx} --------------")
                 # token_idx = np.random.choice(top_n_tokens)
                 attack_token = attack_tokens[token_idx][0]
@@ -116,9 +147,21 @@ class BertWordScoreAttack:
                 candidates = []
 
                 for n_try in range(max_tries_per_token):
-                    perturbed_token = self.perturber.perturb([attack_token])[0][0]
-                    #TODO what if attack/perturbed token is part of another bigger token
-                    perturbed_text = text.replace(attack_token, perturbed_token, 1)
+                    perturbed_text = text
+                    attempted_word_merge = False
+                    # Note: word merging needs to be handled separately, since we only ever
+                    #       pass a single token to the perturber. So with some probability
+                    #       we will just handle merging ourselves here
+                    if self.attack_whitespace and random.random() < 0.2:
+                        perturbed_text = self.attempt_word_merge(text, attack_token)
+                        attempted_word_merge = True
+                    if perturbed_text == text:
+                        perturbed_token = self.perturber.perturb([attack_token])[0][0]
+                        #TODO what if attack/perturbed token is part of another bigger token
+                        perturbed_text = text.replace(attack_token, perturbed_token, 1)
+                    if self.attack_whitespace and perturbed_text == text and not attempted_word_merge:
+                        perturbed_text = self.attempt_word_merge(text, attack_token)
+                        attempted_word_merge = True
                     perturbed_pred, perturbed_score = self.get_bert_output(perturbed_text)
 
                     # print(f"----- n_try: {n_try}----")
@@ -192,8 +235,10 @@ if __name__ == '__main__':
     word_scores_file = "output/imdb_word_scores.json"
     max_sequence_length = 128
 
+    # weight_merge_words is set to 0 since there will always be 1 word at a time
+    # (so nothing to possibly merge)
     wsp = WordScramblerPerturber(perturb_prob=1, weight_add=1, weight_drop=1, weight_swap=1,
-                                                weight_split_word=1,weight_merge_words=1)
+                                                weight_split_word=1,weight_merge_words=0)
     dataset = load_dataset("artemis13fowl/imdb", split="attack_eval_truncated")
 
 
