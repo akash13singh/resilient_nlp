@@ -63,7 +63,7 @@ class BertWordScoreAttack:
     def attack(self, dataset,max_tokens_to_perturb=-1, max_tries_per_token=1, mode=0, attack_results_csv=None, logging=False,
                print_summary=True):
         """
-        mode 0: Perserve best unsuccessful perturbation per token. Final attack can perturb utpo max_tokens_to_query tokens.
+        mode 0: Preserve best unsuccessful perturbation per token. Final attack can perturb up to max_tokens_to_query tokens.
         mode 1: Forgets unccessful perturbations. Final Attacks perturbs only 1 token per sample.
         """
         actuals = dataset['label']
@@ -94,11 +94,11 @@ class BertWordScoreAttack:
             token_scores = {token: self.word_scores[int(ground_truth)].get(token, 0) for token in tokens}
 
             if max_tokens_to_perturb == -1:
-                max_tokens_to_perturb = len(token_scores)
+                max_tokens_to_perturb_for_sample = len(token_scores)
             else:
-                max_tokens_to_perturb = min(max_tokens_to_perturb, len(token_scores))
+                max_tokens_to_perturb_for_sample = min(max_tokens_to_perturb, len(token_scores))
 
-            attack_tokens = sorted(token_scores.items(), key=lambda item: item[1], reverse=True)[:max_tokens_to_perturb]
+            attack_tokens = sorted(token_scores.items(), key=lambda item: item[1], reverse=True)[:max_tokens_to_perturb_for_sample]
 
             attack_passed = False
             token_idx = 0
@@ -107,7 +107,7 @@ class BertWordScoreAttack:
             worst_score = orig_score
             worst_text = orig_text
 
-            while token_idx < max_tokens_to_perturb and not attack_passed:
+            while token_idx < max_tokens_to_perturb_for_sample and not attack_passed:
                 # print(f"----- token_idx: {token_idx} --------------")
                 # token_idx = np.random.choice(top_n_tokens)
                 attack_token = attack_tokens[token_idx][0]
