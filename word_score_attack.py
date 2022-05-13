@@ -106,7 +106,6 @@ class BertWordScoreAttack:
             yield query_and_response
             orig_pred = query_and_response[1]
             orig_score = query_and_response[2]
-            #orig_pred, orig_score = self.get_bert_output(orig_text)
 
             orig_preds[sample_idx] = perturbed_preds[sample_idx] = orig_pred
 
@@ -127,6 +126,11 @@ class BertWordScoreAttack:
             text = orig_text
             worst_score = orig_score
             worst_text = orig_text
+
+            # Since we're preparing multiple calls to the model in order to submit
+            # a batch request, make sure that the perturbations are reproducible. To
+            # do this each attacked sentence will have its own random state.
+            random.seed(orig_text)
 
             while token_idx < len(attack_tokens) and token_idx < max_tokens_to_perturb and not attack_passed:
                 # print(f"----- token_idx: {token_idx} --------------")
@@ -155,10 +159,16 @@ class BertWordScoreAttack:
                         perturbed_token = attack_token
                         attempted_word_merge = True
 
+                    # We need a model prediction to proceed. So we return a 'query' and expect
+                    # our caller to provide the prediction and score after the model call is
+                    # done. Also we're saving the random state since we're yielding control and
+                    # another cooperative 'thread' might change it.
+                    random_state = random.getstate()
                     query_and_response = [ perturbed_text, None, None ]
                     yield query_and_response
                     perturbed_pred = query_and_response[1]
                     perturbed_score = query_and_response[2]
+                    random.setstate(random_state)
 
                     # print(f"----- n_try: {n_try}----")
                     if logging:
