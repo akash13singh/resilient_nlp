@@ -40,7 +40,8 @@ class ExperimentRunner:
                  perturber_class=None,
                  perturber_params={},
                  objective_model_name='bert-base-uncased',
-                 objective_tokenizer_name=None):
+                 objective_tokenizer_name=None,
+                 objective_model_type='bert'):
         self.device = device
 
         char_vocab = [ '<unk>', '<s>', '</s>' ]
@@ -51,6 +52,7 @@ class ExperimentRunner:
             model_class = save_state['model_class']
             model_params = save_state['model_params']
             char_vocab = save_state['char_vocab']
+            objective_model_type = save_state.get('objective_model_type', 'bert')
 
         cls = globals()[model_class]
         self.model = cls(**model_params).to(device)
@@ -74,7 +76,8 @@ class ExperimentRunner:
             per_character_embedding=True,
             add_special_tokens=False,
             start_char_present=True,
-            end_char_present=True)
+            end_char_present=True,
+            model_type=objective_model_type)
 
     def train(self,
               num_epochs,
