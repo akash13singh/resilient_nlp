@@ -4,7 +4,8 @@
 # artefacts
 data/
 models/
-output/
+output/bert-base*
+.idea/
 
 # Environments
 .env
@@ -16,3 +17,4 @@ env.bak/
 
 .DS_Store
 __pycache__
+
