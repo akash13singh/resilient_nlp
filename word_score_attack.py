@@ -208,7 +208,7 @@ class BertWordScoreAttack:
             yield None
 
     def attack(self, dataset,max_tokens_to_perturb=-1, max_tries_per_token=1, mode=0, attack_results_csv=None, logging=False,
-               print_summary=True):
+               print_summary=True, eval_batch_size=32):
         """
         mode 0: Preserve best unsuccessful perturbation per token. Final attack can perturb up to max_tokens_to_query tokens.
         mode 1: Forgets unccessful perturbations. Final Attacks perturbs only 1 token per sample.
@@ -232,18 +232,16 @@ class BertWordScoreAttack:
                 max_tokens_to_perturb, max_tries_per_token,
                 mode, logging, orig_preds, attack_status, perturbed_texts,
                 orig_tokens, perturbed_tokens, n_queries, perturbed_preds))
+        generators.reverse()
 
-        gens_in_batch = 32
-        gens_done = 0
         cur_gens = []
 
         progress_bar = tqdm(total=len(generators))
 
-        while len(cur_gens) > 0 or gens_done < len(generators):
+        while len(cur_gens) > 0 or len(generators) > 0:
             # Fill in generators
-            while len(cur_gens) < gens_in_batch and gens_done < len(generators):
-                cur_gens.append(generators[gens_done])
-                gens_done += 1
+            while len(cur_gens) < eval_batch_size and len(generators) > 0:
+                cur_gens.append(generators.pop())
 
             batch = []
             new_generators = []
@@ -333,7 +331,8 @@ if __name__ == '__main__':
                                   mode=mode,
                                   attack_results_csv=attack_data_file,
                                   logging=False,
-                                  print_summary=True)
+                                  print_summary=True,
+                                  eval_batch_size=1)
     #
     attack_stats = attacker.compute_attack_stats()
     print(attack_stats)

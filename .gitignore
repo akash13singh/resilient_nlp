@@ -4,7 +4,12 @@
 # artefacts
 data/
 models/
+output/*.pth
+output/*.log
 output/bert-base*
+output/roberta-base*
+output/eval/*.json
+output/eval/*.csv
 .idea/
 
 # Environments
