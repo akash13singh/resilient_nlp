@@ -1,0 +1,27 @@
+{
+  "num_epochs": 5,
+  "num_train_sentences": 64000,
+  "num_eval_sentences": 1280,
+  "lr": 0.001,
+  "objective_model_name": "output/bert-base-uncased-yelp_bin/checkpoint-3500",
+  "objective_tokenizer_name": "bert-base-uncased",
+  "model_class": "LSTMModel",
+  "model_params": {
+    "word_emb_size": 768,
+    "char_emb_size": 768,
+    "num_tokens": 1000,
+    "hidden_size": 768,
+    "num_layers": 3
+  },
+  "perturber_class": "WordScramblerPerturber",
+  "perturber_params": {
+    "perturb_prob": 0.2,
+    "weight_add": 1.0,
+    "weight_drop": 1.0,
+    "weight_swap": 1.0,
+    "weight_split_word": 1.0,
+    "weight_merge_words": 1.0,
+    "start_char_present": true,
+    "end_char_present": true
+  }
+}
