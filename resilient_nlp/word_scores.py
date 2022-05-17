@@ -69,6 +69,30 @@ elif dataset_name == 'sst':
     num_classes = 5
     path = "../output/sst_word_scores.json"
     splits = ['train', 'test', 'validation']
+elif dataset_name == 'sst_bin':
+    treebank_detok = TreebankWordDetokenizer()
+
+    dataset = load_dataset('sst').filter(
+        lambda row: row["label"] < 0.4 or row["label"] >= 0.6
+    ).map(
+        lambda row: {
+            "text": treebank_detok.detokenize(row["sentence"].split()),
+            "label": min(math.floor(row["label"] / 0.5), 1.0),
+        }, remove_columns=['sentence', 'tokens', 'tree']
+    )
+    num_classes = 2
+    path = "../output/sst_bin_word_scores.json"
+    splits = ['train', 'test', 'validation']
+elif dataset_name == 'yelp_bin':
+    dataset = load_dataset('yelp_polarity')
+    num_classes = 2
+    path = "../output/yelp_bin_word_scores.json"
+    splits = ['train', 'test']
+elif dataset_name == 'yelp_full':
+    dataset = load_dataset('yelp_review_full')
+    num_classes = 5
+    path = "../output/yelp_full_word_scores.json"
+    splits = ['train', 'test']
 
 in_class_counts = [ Counter() for i in range(num_classes) ]
 out_of_class_counts = [ Counter() for i in range(num_classes) ]
