@@ -3,7 +3,7 @@
   "num_train_sentences": 64000,
   "num_eval_sentences": 1280,
   "lr": 0.001,
-  "objective_model_name": "output/roberta-base-yelp_bin/checkpoint-2200",
+  "objective_model_name": "output/huggingface/roberta-base-yelp_bin",
   "objective_tokenizer_name": "roberta-base",
   "objective_model_type": "roberta",
   "model_class": "LSTMModel",

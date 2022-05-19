@@ -3,7 +3,7 @@
   "num_train_sentences": 64000,
   "num_eval_sentences": 1280,
   "lr": 0.00001,
-  "objective_model_name": "artemis13fowl/bert-base-uncased-imdb",
+  "objective_model_name": "output/huggingface/bert-base-uncased-imdb",
   "objective_tokenizer_name": "bert-base-uncased",
   "model_class": "CNNModel",
   "model_params": {

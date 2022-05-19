@@ -3,7 +3,7 @@
   "num_train_sentences": 64000,
   "num_eval_sentences": 1280,
   "lr": 0.001,
-  "objective_model_name": "output/bert-base-uncased-sst_bin/checkpoint-800",
+  "objective_model_name": "output/huggingface/bert-base-uncased-sst_bin",
   "objective_tokenizer_name": "bert-base-uncased",
   "model_class": "LSTMModel",
   "model_params": {
