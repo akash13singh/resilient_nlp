@@ -294,7 +294,7 @@ class BertWordScoreAttack:
         return self.results
 
 if __name__ == '__main__':
-    checkpoint_finetuned = "artemis13fowl/bert-base-uncased-imdb"
+    checkpoint_finetuned = "output/huggingface/bert-base-uncased-imdb"
     model = BertForSequenceClassification.from_pretrained(checkpoint_finetuned)
     tokenizer_checkpoint = "bert-base-uncased"
     tokenizer = AutoTokenizer.from_pretrained(tokenizer_checkpoint)
@@ -305,7 +305,7 @@ if __name__ == '__main__':
     # (so nothing to possibly merge)
     wsp = WordScramblerPerturber(perturb_prob=1, weight_add=1, weight_drop=1, weight_swap=1,
                                                 weight_split_word=1,weight_merge_words=0)
-    dataset = load_dataset("artemis13fowl/imdb", split="attack_eval_truncated")
+    dataset = load_dataset("output/huggingface/imdb", split="attack_eval_truncated")
 
 
     attack_settings = [

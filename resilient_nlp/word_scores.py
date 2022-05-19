@@ -53,7 +53,7 @@ if len(sys.argv) >= 2:
     dataset_name = sys.argv[1]
 
 if dataset_name == 'imdb':
-    dataset = load_dataset("artemis13fowl/imdb")
+    dataset = load_dataset("output/huggingface/imdb")
     num_classes = 2
     path = "../output/imdb_word_scores.json"
     splits = ['train', 'test', 'dev']

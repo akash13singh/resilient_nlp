@@ -1,8 +1,8 @@
-# This code has been minimally adapted by Jan Jezabek from the MIT licensed
+# This code has been minimally adapted by [redacted] from the MIT licensed
 # repository:
 #   https://github.com/ejones313/roben
 # with the aim of fitting in a single module and avoiding pulling in lots of
-# libraries. All my (jjezabek's) changes are in the public domain.
+# libraries. All my changes are in the public domain.
 
 # MIT License
 #
@@ -310,11 +310,11 @@ class ClusterRepRecoverer(ClusterRecoverer):
                 print(c)
         return ' '.join(tokens)
 
-# Added by jjezabek. It looks like for general inputs, we end up with a *lot*
+# Added by [redacted]. It looks like for general inputs, we end up with a *lot*
 # of [MASK] tokens. This is a slight modification of the recoverer that just
 # leaves the OOV tokens unchanged.
 
-# All of jjezabek's modifications are in the public domain.
+# All of [redacted]'s modifications are in the public domain.
 
 class ClusterRecovererWithPassthrough(ClusterRecoverer):
     def __init__(self, cache_dir, clustering):

@@ -339,7 +339,7 @@ if __name__ == '__main__':
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
     runner = ExperimentRunner(device,
-        objective_model_name='artemis13fowl/bert-base-uncased-imdb',
+        objective_model_name='output/huggingface/bert-base-uncased-imdb',
         objective_tokenizer_name='bert-base-uncased',
         model_class='LSTMModel',
         model_params=DEFAULT_LSTM_PARAMS,

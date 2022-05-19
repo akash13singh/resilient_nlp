@@ -2,20 +2,7 @@
 
 ## Instructions for re-creating finetuned BERT models
 
-The finetuned transformer models are available here:
-- https://huggingface.co/artemis13fowl/bert-base-uncased-imdb
-- https://huggingface.co/jjezabek/roberta-base-imdb
-- https://huggingface.co/jjezabek/bert-base-uncased-sst
-- https://huggingface.co/jjezabek/roberta-base-sst
-- https://huggingface.co/jjezabek/bert-base-uncased-sst_bin
-- https://huggingface.co/jjezabek/roberta-base-sst_bin
-- https://huggingface.co/jjezabek/bert-base-uncased-yelp_bin
-- https://huggingface.co/jjezabek/roberta-base-yelp_bin
-- https://huggingface.co/jjezabek/bert-base-uncased-yelp_full
-- https://huggingface.co/jjezabek/roberta-base-yelp_full
-
-The data augmented BERT model for IMDb is available here:
-- https://huggingface.co/jjezabek/bert-base-uncased-imdb-all-pert
+The finetuned transformer models are available in the output/huggingface directory.
  
 To re-train them locally, execute the following notebooks (available in the notebooks folder):
 - imdb_finetune.ipynb (IMDb BERT)
@@ -27,7 +14,7 @@ To re-train them locally, execute the following notebooks (available in the note
 
 ## Dataset
 
-The IMDb dataset split used for finetuning and evaluating IMDb is available here: https://huggingface.co/datasets/artemis13fowl/imdb . For other tasks we are using default HuggingFace datasets.
+The IMDb dataset split used for finetuning and evaluating IMDb is available in output/huggingface/imdb . For other tasks we are using default HuggingFace datasets.
 
 ## MockingBERT models
 
