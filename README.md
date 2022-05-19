@@ -2,27 +2,57 @@
 
 ## Instructions for re-creating finetuned BERT models
 
-The finetuned models are available here
-- Trained on unperturbed data: https://huggingface.co/artemis13fowl/bert-base-uncased-imdb
-- Trained on perturbed data: https://huggingface.co/jjezabek/bert-base-uncased-imdb-all-pert
+The finetuned transformer models are available here:
+- https://huggingface.co/artemis13fowl/bert-base-uncased-imdb
+- https://huggingface.co/jjezabek/roberta-base-imdb
+- https://huggingface.co/jjezabek/bert-base-uncased-sst
+- https://huggingface.co/jjezabek/roberta-base-sst
+- https://huggingface.co/jjezabek/bert-base-uncased-sst_bin
+- https://huggingface.co/jjezabek/roberta-base-sst_bin
+- https://huggingface.co/jjezabek/bert-base-uncased-yelp_bin
+- https://huggingface.co/jjezabek/roberta-base-yelp_bin
+- https://huggingface.co/jjezabek/bert-base-uncased-yelp_full
+- https://huggingface.co/jjezabek/roberta-base-yelp_full
+
+The data augmented BERT model for IMDb is available here:
+- https://huggingface.co/jjezabek/bert-base-uncased-imdb-all-pert
  
-To re-train them locally, execute the notebooks 'imdb_finetune.ipynb' or 'imdb_finetune_all_pert.ipynb' respectively.
+To re-train them locally, execute the following notebooks (available in the notebooks folder):
+- imdb_finetune.ipynb (IMDb BERT)
+- imdb_finetune_roberta.ipynb (IMDb RoBERTa)
+- imdb_finetune_all_pert.ipynb (IMDb BERT, data augmentation)
+- sst5_finetune_bert.ipynb (SST-5 BERT)
+- sst5_finetune_roberta.ipynb (SST-5 RoBERTa)
+- multi_model_finetune.ipynb (Lyft-2 and Lyft-5 for BERT and RoBERTa)
 
 ## Dataset
 
-The IMDb dataset split used for finetuning is available here: https://huggingface.co/datasets/artemis13fowl/imdb
+The IMDb dataset split used for finetuning and evaluating IMDb is available here: https://huggingface.co/datasets/artemis13fowl/imdb . For other tasks we are using default HuggingFace datasets.
 
 ## MockingBERT models
 
 The trained MockingBERT models can be found here:
 ```
-https://resilient-nlp.s3.us-west-2.amazonaws.com/64k_cnn_no_whitespace_pert_finetuned.pth
-https://resilient-nlp.s3.us-west-2.amazonaws.com/64k_lstm_all_pert_finetuned.pth
-https://resilient-nlp.s3.us-west-2.amazonaws.com/64k_lstm_all_pert_vanilla.pth
-https://resilient-nlp.s3.us-west-2.amazonaws.com/64k_lstm_clean_finetuned.pth
-https://resilient-nlp.s3.us-west-2.amazonaws.com/64k_lstm_clean_vanilla.pth
-https://resilient-nlp.s3.us-west-2.amazonaws.com/64k_lstm_no_whitespace_pert_finetuned.pth
-https://resilient-nlp.s3.us-west-2.amazonaws.com/64k_lstm_no_whitespace_pert_vanilla.pth
+https://resilient-nlp.s3.us-west-2.amazonaws.com/bert_2m_lstm_all_pert_finetuned_imdb.pth
+https://resilient-nlp.s3.us-west-2.amazonaws.com/bert_32k_lstm_all_pert_finetuned_imdb_100ep.pth
+https://resilient-nlp.s3.us-west-2.amazonaws.com/bert_64k_cnn_no_whitespace_pert_finetuned_imdb.pth
+https://resilient-nlp.s3.us-west-2.amazonaws.com/bert_64k_lstm_all_pert_finetuned_imdb.pth
+https://resilient-nlp.s3.us-west-2.amazonaws.com/bert_64k_lstm_all_pert_finetuned_sst_bin.pth
+https://resilient-nlp.s3.us-west-2.amazonaws.com/bert_64k_lstm_all_pert_finetuned_sst.pth
+https://resilient-nlp.s3.us-west-2.amazonaws.com/bert_64k_lstm_all_pert_finetuned_yelp_bin.pth
+https://resilient-nlp.s3.us-west-2.amazonaws.com/bert_64k_lstm_all_pert_finetuned_yelp_full.pth
+https://resilient-nlp.s3.us-west-2.amazonaws.com/bert_64k_lstm_all_pert_vanilla.pth
+https://resilient-nlp.s3.us-west-2.amazonaws.com/bert_64k_lstm_clean_finetuned_imdb.pth
+https://resilient-nlp.s3.us-west-2.amazonaws.com/bert_64k_lstm_clean_vanilla.pth
+https://resilient-nlp.s3.us-west-2.amazonaws.com/bert_64k_lstm_no_whitespace_pert_finetuned_imdb.pth
+https://resilient-nlp.s3.us-west-2.amazonaws.com/bert_64k_lstm_no_whitespace_pert_vanilla.pth
+https://resilient-nlp.s3.us-west-2.amazonaws.com/bert_64k_rnn_all_pert_finetuned_imdb.pth
+https://resilient-nlp.s3.us-west-2.amazonaws.com/roberta_64k_lstm_all_pert_finetuned_imdb.pth
+https://resilient-nlp.s3.us-west-2.amazonaws.com/roberta_64k_lstm_all_pert_finetuned_sst_bin.pth
+https://resilient-nlp.s3.us-west-2.amazonaws.com/roberta_64k_lstm_all_pert_finetuned_sst.pth
+https://resilient-nlp.s3.us-west-2.amazonaws.com/roberta_64k_lstm_all_pert_finetuned_yelp_bin.pth
+https://resilient-nlp.s3.us-west-2.amazonaws.com/roberta_64k_lstm_all_pert_finetuned_yelp_full.pth
+https://resilient-nlp.s3.us-west-2.amazonaws.com/roberta_64k_lstm_all_pert_vanilla.pth
 ```
 
 For evaluation, they need to be placed in the 'output' directory of the 'resilient_nlp' repository.
