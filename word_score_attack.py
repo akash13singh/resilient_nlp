@@ -43,7 +43,7 @@ class BertWordScoreAttack:
         preds = torch.argmax(logits, dim=1)
         smax = torch.nn.Softmax(dim=1)
         probs = smax(logits)
-        return preds, torch.round(probs[range(len(sentences)), preds], decimals=4)
+        return preds, torch.round(probs[range(len(sentences)), preds])
 
     def perturb_word(word):
         pass
